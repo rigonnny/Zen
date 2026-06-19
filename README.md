@@ -37,11 +37,11 @@ Vercel). **No paid API keys, no recurring costs.**
 house_types (Tipi) 1───* houses ──┬──* transactions   (income/expense, bank/cash; income+house = a payment)
                                    ├──* documents       (documentation | floorplan | other)
                                    ├──* offers          (optional link)
-                                   └──* reservation_houses *──—1 reservations
+                                   └──* reservation_houses *───1 reservations
 
 calc_projects 1──* calc_subareas
 calc_projects 1──* calc_scenarios
-profiles 1──≐1 auth.users
+profiles 1───1 auth.users
 ```
 
 Key decisions baked in:
