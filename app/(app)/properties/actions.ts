@@ -9,7 +9,7 @@ import { removeFileAction } from "@/lib/actions/storage";
 
 type ActionResult = { error?: string };
 
-// ── Shared validation helpers ────────────────────────────────────
+// ── Shared validation helpers ─────────────────────────────────────────────
 
 const uuid = z.string().uuid("Identifikues i pavlefshëm.");
 
@@ -51,7 +51,7 @@ function firstError(error: z.ZodError): string {
   return error.issues[0]?.message ?? "Të dhëna të pavlefshme.";
 }
 
-// ── House types (Tipi) ───────────────────────────────────────
+// ── House types (Tipi) ────────────────────────────────────────────────────
 
 const createHouseTypeSchema = z.object({
   name: z.string().trim().min(1, "Emri i tipit është i detyrueshëm.").max(120),
@@ -83,7 +83,7 @@ export async function createHouseType(input: {
   return {};
 }
 
-// ── Houses ────────────────────────────────────────────────
+// ── Houses ────────────────────────────────────────────────────────────────
 
 const houseCoreSchema = z.object({
   type_id: uuid,
@@ -184,7 +184,7 @@ export async function deleteHouse(input: { id: string }): Promise<ActionResult> 
   redirect("/properties");
 }
 
-// ── Finance / debt ─────────────────────────────────────────
+// ── Finance / debt ────────────────────────────────────────────────────────
 
 const updateHouseFinanceSchema = z.object({
   id: uuid,
@@ -240,7 +240,7 @@ export async function updateHouseDescription(input: {
   return {};
 }
 
-// ── Payments (Pagesat) — income transactions tied to a house ──────────
+// ── Payments (Pagesat) — income transactions tied to a house ──────────────
 
 const addPaymentSchema = z.object({
   house_id: uuid,
@@ -298,7 +298,7 @@ export async function deletePayment(input: {
   return {};
 }
 
-// ── Documents (Dokumentacionet + Planimetria) ─────────────────────
+// ── Documents (Dokumentacionet + Planimetria) ─────────────────────────────
 
 const addDocumentSchema = z.object({
   house_id: uuid,
