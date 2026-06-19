@@ -1,14 +1,14 @@
--- ═════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 --  ZEN RESIDENCES CRM — Database schema (Supabase / Postgres)
 --  Run this once in: Supabase Dashboard → SQL Editor → New query → Run.
 --  Idempotent-ish: safe to re-run on a fresh project.
--- ═════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 
--- ── Extensions ────────────────────────────────────────────────
+-- ── Extensions ──────────────────────────────────────────────────────────
 create extension if not exists pgcrypto;   -- gen_random_uuid()
 create extension if not exists pg_trgm;     -- fast ILIKE search on 1000+ rows
 
--- ── Enums ─────────────────────────────────────────────────
+-- ── Enums ───────────────────────────────────────────────────────────────
 do $$ begin
   create type transaction_kind as enum ('income', 'expense');
 exception when duplicate_object then null; end $$;
@@ -33,7 +33,7 @@ do $$ begin
   create type offer_status as enum ('received', 'accepted', 'rejected', 'expired');
 exception when duplicate_object then null; end $$;
 
--- ── Shared helper: keep updated_at fresh ──────────────────────────
+-- ── Shared helper: keep updated_at fresh ────────────────────────────────
 create or replace function set_updated_at()
 returns trigger language plpgsql as $$
 begin
@@ -41,9 +41,9 @@ begin
   return new;
 end; $$;
 
--- ═════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 --  PROFILES (mirrors auth.users for display names / roles)
--- ═════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 create table if not exists profiles (
   id          uuid primary key references auth.users(id) on delete cascade,
   full_name   text,
@@ -66,9 +66,9 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function handle_new_user();
 
--- ═════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 --  PROPERTIES — Houses → Tipi (type) → individual House
--- ═════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 create table if not exists house_types (
   id          uuid primary key default gen_random_uuid(),
   name        text not null unique,          -- "Tipi 1", "Tipi 2", ...
@@ -100,9 +100,9 @@ create index if not exists idx_houses_status  on houses(status);
 create index if not exists idx_houses_name_trgm on houses using gin (name gin_trgm_ops);
 create index if not exists idx_houses_code_trgm on houses using gin (code gin_trgm_ops);
 
--- ═════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 --  FINANCES — single ledger powering the Dashboard + per-house Pagesat
--- ═════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 create table if not exists transactions (
   id           uuid primary key default gen_random_uuid(),
   kind         transaction_kind not null,          -- income | expense
@@ -121,9 +121,9 @@ create index if not exists idx_tx_kind   on transactions(kind);
 create index if not exists idx_tx_method on transactions(method);
 create index if not exists idx_tx_date   on transactions(occurred_on);
 
--- ═════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 --  DOCUMENTS — Dokumentacionet + Planimetria (files in Supabase Storage)
--- ═════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 create table if not exists documents (
   id           uuid primary key default gen_random_uuid(),
   house_id     uuid not null references houses(id) on delete cascade,
@@ -141,9 +141,9 @@ create index if not exists idx_docs_house on documents(house_id);
 create index if not exists idx_docs_cat   on documents(category);
 create index if not exists idx_docs_name_trgm on documents using gin (file_name gin_trgm_ops);
 
--- ═════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 --  RESERVATIONS — Rezervimet (a reservation covers one or more houses)
--- ═════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 create table if not exists reservations (
   id             uuid primary key default gen_random_uuid(),
   client_name    text not null,
@@ -167,9 +167,9 @@ create table if not exists reservation_houses (
 
 create index if not exists idx_reshouses_house on reservation_houses(house_id);
 
--- ═════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 --  OFFERS — Ofertat (uploaded PDF / email / document per client/house)
--- ═════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 create table if not exists offers (
   id           uuid primary key default gen_random_uuid(),
   client_name  text not null,
@@ -192,9 +192,9 @@ create index if not exists idx_offers_status on offers(status);
 create index if not exists idx_offers_date   on offers(offer_date);
 create index if not exists idx_offers_client_trgm on offers using gin (client_name gin_trgm_ops);
 
--- ═════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 --  PROFIT CALCULATOR — Kalkulator (savable scenarios)
--- ═════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 create table if not exists calc_projects (
   id                  uuid primary key default gen_random_uuid(),
   name                text not null,
@@ -229,9 +229,9 @@ create table if not exists calc_scenarios (
 );
 create index if not exists idx_scenarios_project on calc_scenarios(project_id);
 
--- ═════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 --  VIEW — house_financials: per-house paid / debt / overdue (efficient list)
--- ═════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 create or replace view house_financials
 with (security_invoker = true) as
 select
@@ -254,9 +254,9 @@ left join (
   group by house_id
 ) p on p.house_id = h.id;
 
--- ═════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 --  RPC — dashboard summary (income/expense × bank/cash) for a date range
--- ═════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 create or replace function get_dashboard_summary(p_start date default null, p_end date default null)
 returns json language sql stable as $$
   select json_build_object(
@@ -271,9 +271,9 @@ returns json language sql stable as $$
     and (p_end   is null or occurred_on <= p_end);
 $$;
 
--- ═════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 --  RPC — monthly cashflow series for the dashboard chart
--- ══════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 create or replace function get_monthly_cashflow(p_months int default 12)
 returns table(month date, income numeric, expense numeric)
 language sql stable as $$
@@ -287,9 +287,9 @@ language sql stable as $$
   order by 1;
 $$;
 
--- ═════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 --  ROW LEVEL SECURITY — internal team only (any authenticated user = full)
--- ═════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 alter table profiles            enable row level security;
 alter table house_types         enable row level security;
 alter table houses              enable row level security;
@@ -325,9 +325,9 @@ begin
   end loop;
 end $$;
 
--- ═════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 --  STORAGE — private buckets + authenticated-only access policies
--- ═════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 insert into storage.buckets (id, name, public)
 values ('documents','documents', false),
        ('floorplans','floorplans', false),
@@ -348,6 +348,6 @@ create policy "zen_storage_update" on storage.objects for update to authenticate
 create policy "zen_storage_delete" on storage.objects for delete to authenticated
   using (bucket_id in ('documents','floorplans','offers'));
 
--- ═════════════════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════════════
 --  Done. Next: run supabase/seed.sql for sample data (optional).
--- ══════════════════════════════════════════════════════════════════════════════──
+-- ════════════════════════════════════════════════════════════════════════
