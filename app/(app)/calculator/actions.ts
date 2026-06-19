@@ -15,7 +15,7 @@ function firstError(error: z.ZodError): string {
   return error.issues[0]?.message ?? "Të dhëna të pavlefshme.";
 }
 
-// ── Shared validation helpers ────────────────────────────────────
+// ── Shared validation helpers ─────────────────────────────────────────────
 
 const uuid = z.string().uuid("Identifikues i pavlefshëm.");
 
@@ -41,7 +41,7 @@ const optionalNotes = z
   .optional()
   .transform((v) => (v && v.length > 0 ? v : null));
 
-// ── Projects (Projekte) ──────────────────────────────────────
+// ── Projects (Projekte) ───────────────────────────────────────────────────
 
 const createProjectSchema = z.object({
   name: z.string().trim().min(1, "Emri i projektit është i detyrueshëm.").max(160),
@@ -125,7 +125,7 @@ export async function deleteProject(id: string): Promise<ActionResult> {
   return {};
 }
 
-// ── Sub-areas (Nën-zonat) ────────────────────────────────────
+// ── Sub-areas (Nën-zonat) ─────────────────────────────────────────────────
 
 const addSubareaSchema = z.object({
   project_id: uuid,
@@ -196,7 +196,7 @@ export async function deleteSubarea(id: string): Promise<ActionResult> {
   return {};
 }
 
-// ── Scenarios (Skenarët) ─────────────────────────────────────
+// ── Scenarios (Skenarët) ──────────────────────────────────────────────────
 
 const addScenarioSchema = z.object({
   project_id: uuid,
