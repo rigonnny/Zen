@@ -209,7 +209,7 @@ export function CalculatorPanel({
       best: c.key === bestKey,
     }));
 
-  // ── Local mutations ────────────────────────────────────────
+  // ── Local mutations ──────────────────────────────────────────────────────
 
   function addSubareaRow() {
     setSubareas((prev) => [
@@ -245,7 +245,7 @@ export function CalculatorPanel({
     setScenarios((prev) => prev.filter((r) => r.key !== key));
   }
 
-  // ── Persistence (batch on save) ───────────────────────────────
+  // ── Persistence (batch on save) ──────────────────────────────────────────
 
   function handleSave() {
     if (!name.trim()) {
