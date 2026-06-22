@@ -11,10 +11,11 @@ import {
   Save,
   Trash2,
   TrendingUp,
+  Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { computeScenario, sumSubareas } from "@/lib/calc";
+import { computeScenario, sumCosts, sumSubareas } from "@/lib/calc";
 import { formatArea, formatEur, formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -43,11 +44,14 @@ import {
   type ProfitChartDatum,
 } from "@/components/calculator/profit-chart";
 import {
+  addCost,
   addScenario,
   addSubarea,
+  deleteCost,
   deleteProject,
   deleteScenario,
   deleteSubarea,
+  updateCost,
   updateProject,
   updateScenario,
   updateSubarea,
@@ -70,6 +74,14 @@ export interface CalcScenarioView {
   created_at: string;
 }
 
+export interface CalcCostView {
+  id: string;
+  project_id: string;
+  label: string;
+  cost_per_m2: number;
+  sort_order: number;
+}
+
 export interface CalcProjectWithChildren {
   id: string;
   name: string;
@@ -80,6 +92,7 @@ export interface CalcProjectWithChildren {
   updated_at: string;
   subareas: CalcSubareaView[];
   scenarios: CalcScenarioView[];
+  costs: CalcCostView[];
 }
 
 type AreaBasis = "total" | "subareas";
@@ -96,6 +109,13 @@ interface ScenarioRow {
   key: string;
   id: string | null;
   price_per_m2: string;
+}
+
+interface CostRow {
+  key: string;
+  id: string | null;
+  label: string;
+  cost_per_m2: string;
 }
 
 let keySeq = 0;
@@ -124,6 +144,15 @@ function scenarioRows(project: CalcProjectWithChildren): ScenarioRow[] {
     key: nextKey("sc"),
     id: s.id,
     price_per_m2: String(s.price_per_m2),
+  }));
+}
+
+function costRows(project: CalcProjectWithChildren): CostRow[] {
+  return project.costs.map((c) => ({
+    key: nextKey("co"),
+    id: c.id,
+    label: c.label,
+    cost_per_m2: String(c.cost_per_m2),
   }));
 }
 
@@ -159,6 +188,7 @@ export function CalculatorPanel({
   const [scenarios, setScenarios] = useState<ScenarioRow[]>(() =>
     scenarioRows(project)
   );
+  const [costs, setCosts] = useState<CostRow[]>(() => costRows(project));
 
   if (stateKey !== seedKey) {
     // Selected project (or its saved data) changed — reset the form to match.
@@ -168,6 +198,7 @@ export function CalculatorPanel({
     setLandownerPct(String(project.landowner_share_pct));
     setSubareas(subareaRows(project));
     setScenarios(scenarioRows(project));
+    setCosts(costRows(project));
   }
 
   const pct = toNum(landownerPct);
@@ -177,15 +208,25 @@ export function CalculatorPanel({
   );
   const effectiveArea = areaBasis === "total" ? totalAreaNum : subareasSum;
 
+  const totalCostPerM2 = sumCosts(
+    costs.map((c) => ({ cost_per_m2: toNum(c.cost_per_m2) }))
+  );
+  const totalCost = totalCostPerM2 * effectiveArea;
+
   // Live per-scenario computation (used for table, chart and best highlight).
   const computed = useMemo(
     () =>
       scenarios.map((row) => ({
         key: row.key,
         price: toNum(row.price_per_m2),
-        result: computeScenario(effectiveArea, toNum(row.price_per_m2), pct),
+        result: computeScenario(
+          effectiveArea,
+          toNum(row.price_per_m2),
+          pct,
+          totalCostPerM2
+        ),
       })),
-    [scenarios, effectiveArea, pct]
+    [scenarios, effectiveArea, pct, totalCostPerM2]
   );
 
   const bestKey = useMemo(() => {
@@ -209,7 +250,7 @@ export function CalculatorPanel({
       best: c.key === bestKey,
     }));
 
-  // ── Local mutations ──────────────────────────────────────────────────────
+  // ── Local mutations ─────────────────────────────────────────────────
 
   function addSubareaRow() {
     setSubareas((prev) => [
@@ -245,7 +286,22 @@ export function CalculatorPanel({
     setScenarios((prev) => prev.filter((r) => r.key !== key));
   }
 
-  // ── Persistence (batch on save) ──────────────────────────────────────────
+  function addCostRow() {
+    setCosts((prev) => [
+      ...prev,
+      { key: nextKey("co"), id: null, label: "", cost_per_m2: "" },
+    ]);
+  }
+
+  function updateCostRow(key: string, patch: Partial<CostRow>) {
+    setCosts((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  }
+
+  function removeCostRow(key: string) {
+    setCosts((prev) => prev.filter((r) => r.key !== key));
+  }
+
+  // ── Persistence (batch on save) ────────────────────────────────────────
 
   function handleSave() {
     if (!name.trim()) {
@@ -258,6 +314,9 @@ export function CalculatorPanel({
     );
     const keptScenarioIds = new Set(
       scenarios.map((r) => r.id).filter((id): id is string => id !== null)
+    );
+    const keptCostIds = new Set(
+      costs.map((r) => r.id).filter((id): id is string => id !== null)
     );
 
     startSave(async () => {
@@ -310,6 +369,28 @@ export function CalculatorPanel({
               project_id: project.id,
               label,
               price_per_m2: price,
+              sort_order: index,
+            })
+          );
+        }
+      });
+
+      // Costs: delete removed, update existing, insert new.
+      project.costs.forEach((c) => {
+        if (!keptCostIds.has(c.id)) ops.push(deleteCost(c.id));
+      });
+      costs.forEach((row, index) => {
+        const label = row.label.trim() || `Kosto ${index + 1}`;
+        if (row.id) {
+          ops.push(
+            updateCost({ id: row.id, label, cost_per_m2: row.cost_per_m2 || 0 })
+          );
+        } else {
+          ops.push(
+            addCost({
+              project_id: project.id,
+              label,
+              cost_per_m2: row.cost_per_m2 || 0,
               sort_order: index,
             })
           );
@@ -555,6 +636,95 @@ export function CalculatorPanel({
             </CardContent>
           </Card>
 
+          {/* Costs */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <CardTitle>Kostot (€/m²)</CardTitle>
+                  <CardDescription>
+                    Kostot e ndërtimit dhe infrastrukturës për m².
+                  </CardDescription>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addCostRow}
+                >
+                  <Plus className="h-4 w-4" />
+                  Shto
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {costs.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Asnjë kosto. Shto ndërtimin, rrugët, ndriçimin etj.
+                </p>
+              ) : (
+                costs.map((row) => (
+                  <div key={row.key} className="flex items-end gap-2">
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-xs text-muted-foreground">
+                        Emri
+                      </Label>
+                      <Input
+                        value={row.label}
+                        onChange={(e) =>
+                          updateCostRow(row.key, { label: e.target.value })
+                        }
+                        placeholder="p.sh. Ndërtimi"
+                      />
+                    </div>
+                    <div className="w-28 space-y-1">
+                      <Label className="text-xs text-muted-foreground">
+                        €/m²
+                      </Label>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        min={0}
+                        step="0.01"
+                        value={row.cost_per_m2}
+                        onChange={(e) =>
+                          updateCostRow(row.key, { cost_per_m2: e.target.value })
+                        }
+                        placeholder="0"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeCostRow(row.key)}
+                      aria-label="Hiq koston"
+                    >
+                      <Trash2 className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </div>
+                ))
+              )}
+
+              <Separator />
+
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Totali €/m²</span>
+                  <span className="font-medium tabular-nums">
+                    {formatEur(totalCostPerM2)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Kostoja totale</span>
+                  <span className="font-medium tabular-nums">
+                    {formatEur(totalCost)}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Scenarios */}
           <Card>
             <CardHeader>
@@ -619,7 +789,7 @@ export function CalculatorPanel({
         {/* Results column */}
         <div className="space-y-6 lg:col-span-2">
           {/* Best-scenario summary */}
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
               label="Të ardhura bruto"
               value={best ? formatEur(best.result.revenue) : "—"}
@@ -634,7 +804,13 @@ export function CalculatorPanel({
               accent="expense"
             />
             <StatCard
-              label="Fitimi i kompanisë"
+              label="Kostot totale"
+              value={best ? formatEur(best.result.totalCost) : "—"}
+              icon={Wallet}
+              accent="expense"
+            />
+            <StatCard
+              label="Fitimi neto"
               value={best ? formatEur(best.result.profit) : "—"}
               sub={best ? "Skenari më fitimprurës" : undefined}
               icon={TrendingUp}
@@ -699,6 +875,12 @@ export function CalculatorPanel({
                               </dt>
                               <dd className="tabular-nums text-destructive">
                                 −{formatEur(c.result.landownerShare)}
+                              </dd>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <dt className="text-muted-foreground">Kostot</dt>
+                              <dd className="tabular-nums text-destructive">
+                                −{formatEur(c.result.totalCost)}
                               </dd>
                             </div>
                             <Separator />
