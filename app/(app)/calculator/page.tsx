@@ -1,12 +1,18 @@
 import { Calculator } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import type { CalcProject, CalcScenario, CalcSubarea } from "@/lib/types";
+import type {
+  CalcCost,
+  CalcProject,
+  CalcScenario,
+  CalcSubarea,
+} from "@/lib/types";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { AddProjectDialog } from "@/components/calculator/add-project-dialog";
 import {
   CalculatorPanel,
+  type CalcCostView,
   type CalcProjectWithChildren,
 } from "@/components/calculator/calculator-panel";
 
@@ -29,6 +35,29 @@ export default async function CalculatorPage() {
 
   // Degrade to an empty list on error — never throw on the page.
   const rows: RawProjectRow[] = error ? [] : ((data as RawProjectRow[] | null) ?? []);
+
+  // Costs live in a separate query so a not-yet-created table can't break the
+  // page (e.g. before the 0002 migration runs). Any error → treat as empty.
+  const { data: costData, error: costError } = await supabase
+    .from("calc_costs")
+    .select("*");
+  const costRows: CalcCost[] = costError
+    ? []
+    : ((costData as CalcCost[] | null) ?? []);
+
+  const costsByProject = new Map<string, CalcCostView[]>();
+  for (const c of costRows) {
+    const view: CalcCostView = {
+      id: c.id,
+      project_id: c.project_id,
+      label: c.label,
+      cost_per_m2: Number(c.cost_per_m2),
+      sort_order: Number(c.sort_order),
+    };
+    const list = costsByProject.get(c.project_id);
+    if (list) list.push(view);
+    else costsByProject.set(c.project_id, [view]);
+  }
 
   const projects: CalcProjectWithChildren[] = rows.map((row) => ({
     id: row.id,
@@ -57,6 +86,9 @@ export default async function CalculatorPage() {
         created_at: s.created_at,
       }))
       .sort((a, b) => a.sort_order - b.sort_order),
+    costs: (costsByProject.get(row.id) ?? []).sort(
+      (a, b) => a.sort_order - b.sort_order
+    ),
   }));
 
   return (

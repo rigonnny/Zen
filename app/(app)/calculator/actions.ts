@@ -196,6 +196,75 @@ export async function deleteSubarea(id: string): Promise<ActionResult> {
   return {};
 }
 
+// ── Costs (Kostot) ────────────────────────────────────────────────────────
+
+const addCostSchema = z.object({
+  project_id: uuid,
+  label: z.string().trim().min(1, "Emri i kostos është i detyrueshëm.").max(160),
+  cost_per_m2: nonNegativeNumber,
+  sort_order: nonNegativeNumber.optional(),
+});
+
+export type AddCostInput = z.input<typeof addCostSchema>;
+
+export async function addCost(input: AddCostInput): Promise<ActionResult> {
+  const parsed = addCostSchema.safeParse(input);
+  if (!parsed.success) return { error: firstError(parsed.error) };
+
+  const supabase = createClient();
+  const { error } = await supabase.from("calc_costs").insert({
+    project_id: parsed.data.project_id,
+    label: parsed.data.label,
+    cost_per_m2: parsed.data.cost_per_m2,
+    sort_order: parsed.data.sort_order ?? 0,
+  });
+
+  if (error) return { error: error.message };
+
+  revalidate();
+  return {};
+}
+
+const updateCostSchema = z.object({
+  id: uuid,
+  label: z.string().trim().min(1, "Emri i kostos është i detyrueshëm.").max(160),
+  cost_per_m2: nonNegativeNumber,
+});
+
+export type UpdateCostInput = z.input<typeof updateCostSchema>;
+
+export async function updateCost(input: UpdateCostInput): Promise<ActionResult> {
+  const parsed = updateCostSchema.safeParse(input);
+  if (!parsed.success) return { error: firstError(parsed.error) };
+
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("calc_costs")
+    .update({ label: parsed.data.label, cost_per_m2: parsed.data.cost_per_m2 })
+    .eq("id", parsed.data.id);
+
+  if (error) return { error: error.message };
+
+  revalidate();
+  return {};
+}
+
+export async function deleteCost(id: string): Promise<ActionResult> {
+  const parsed = uuid.safeParse(id);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message };
+
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("calc_costs")
+    .delete()
+    .eq("id", parsed.data);
+
+  if (error) return { error: error.message };
+
+  revalidate();
+  return {};
+}
+
 // ── Scenarios (Skenarët) ──────────────────────────────────────────────────
 
 const addScenarioSchema = z.object({

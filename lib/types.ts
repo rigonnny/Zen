@@ -114,6 +114,14 @@ export interface CalcSubarea {
   sort_order: number;
 }
 
+export interface CalcCost {
+  id: string;
+  project_id: string;
+  label: string;
+  cost_per_m2: number;
+  sort_order: number;
+}
+
 export interface CalcScenario {
   id: string;
   project_id: string;
