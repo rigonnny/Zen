@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import {
   ArrowLeft,
   BadgeEuro,
+  Printer,
   TrendingDown,
   Wallet,
 } from "lucide-react";
@@ -19,6 +20,7 @@ import { houseStatusLabel, houseStatusVariant } from "@/lib/labels";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Tabs,
@@ -123,6 +125,12 @@ export default async function HouseDetailPage({
         <Badge variant={houseStatusVariant[house.status]}>
           {houseStatusLabel[house.status]}
         </Badge>
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/statement/${house.id}`} target="_blank">
+            <Printer className="h-4 w-4" />
+            Pasqyra
+          </Link>
+        </Button>
         <EditHouseDialog house={house} types={types} />
         <DeleteHouseButton houseId={house.id} houseName={house.name} />
       </PageHeader>

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, Trash2, Wallet } from "lucide-react";
+import { Loader2, Plus, Receipt, Trash2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 
 import type { PaymentMethod, Transaction } from "@/lib/types";
@@ -281,7 +282,21 @@ export function PaymentsTab({
                     {formatEur(p.amount)}
                   </TableCell>
                   <TableCell className="text-right">
-                    <DeletePaymentButton id={p.id} houseId={houseId} />
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        asChild
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 text-muted-foreground hover:text-foreground"
+                      >
+                        <Link href={`/receipt/${p.id}`} target="_blank">
+                          <Receipt className="h-4 w-4" />
+                          Faturë
+                        </Link>
+                      </Button>
+                      <DeletePaymentButton id={p.id} houseId={houseId} />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
