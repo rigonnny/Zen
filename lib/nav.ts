@@ -1,5 +1,6 @@
 import {
   LayoutDashboard,
+  Gauge,
   Landmark,
   Banknote,
   Building2,
@@ -22,6 +23,12 @@ export const navItems: NavItem[] = [
     label: "Paneli",
     description: "Të hyrat dhe shpenzimet",
     icon: LayoutDashboard,
+  },
+  {
+    href: "/overview",
+    label: "Përmbledhja",
+    description: "Statusi i shitjeve dhe financave",
+    icon: Gauge,
   },
   {
     href: "/bank",
