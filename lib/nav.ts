@@ -1,5 +1,7 @@
 import {
   LayoutDashboard,
+  Landmark,
+  Banknote,
   Building2,
   CalendarClock,
   Calculator,
@@ -20,6 +22,18 @@ export const navItems: NavItem[] = [
     label: "Paneli",
     description: "Të hyrat dhe shpenzimet",
     icon: LayoutDashboard,
+  },
+  {
+    href: "/bank",
+    label: "Banka",
+    description: "Transaksionet me bankë",
+    icon: Landmark,
+  },
+  {
+    href: "/cash",
+    label: "Cash",
+    description: "Transaksionet me kesh",
+    icon: Banknote,
   },
   {
     href: "/properties",

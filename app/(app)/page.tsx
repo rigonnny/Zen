@@ -39,6 +39,7 @@ import { StatCard } from "@/components/stat-card";
 import { EmptyState } from "@/components/empty-state";
 import { CashflowChart } from "@/components/dashboard/cashflow-chart";
 import { BreakdownChart } from "@/components/dashboard/breakdown-chart";
+import { AddTransactionDialog } from "@/components/dashboard/add-transaction-dialog";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Paneli" };
@@ -104,7 +105,9 @@ export default async function DashboardPage() {
       <PageHeader
         title="Paneli"
         description="Përmbledhje e të hyrave dhe shpenzimeve"
-      />
+      >
+        <AddTransactionDialog />
+      </PageHeader>
 
       {hasError && (
         <div className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning-foreground">
