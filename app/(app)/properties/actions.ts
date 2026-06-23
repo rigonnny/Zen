@@ -9,7 +9,7 @@ import { removeFileAction } from "@/lib/actions/storage";
 
 type ActionResult = { error?: string };
 
-// ── Shared validation helpers ─────────────────────────────────────────────
+// ── Shared validation helpers ────────────────────────────────────
 
 const uuid = z.string().uuid("Identifikues i pavlefshëm.");
 
@@ -51,7 +51,7 @@ function firstError(error: z.ZodError): string {
   return error.issues[0]?.message ?? "Të dhëna të pavlefshme.";
 }
 
-// ── House types (Tipi) ────────────────────────────────────────────────────
+// ── House types (Tipi) ─────────────────────────────────────────
 
 const createHouseTypeSchema = z.object({
   name: z.string().trim().min(1, "Emri i tipit është i detyrueshëm.").max(120),
@@ -83,7 +83,7 @@ export async function createHouseType(input: {
   return {};
 }
 
-// ── Houses ────────────────────────────────────────────────────────────────
+// ── Houses ───────────────────────────────────────────────────
 
 const houseCoreSchema = z.object({
   type_id: uuid,
@@ -184,7 +184,7 @@ export async function deleteHouse(input: { id: string }): Promise<ActionResult> 
   redirect("/properties");
 }
 
-// ── Finance / debt ────────────────────────────────────────────────────────
+// ── Finance / debt ────────────────────────────────────────────
 
 const updateHouseFinanceSchema = z.object({
   id: uuid,
@@ -240,7 +240,7 @@ export async function updateHouseDescription(input: {
   return {};
 }
 
-// ── Payments (Pagesat) — income transactions tied to a house ──────────────
+// ── Payments (Pagesat) — income transactions tied to a house ──────────
 
 const addPaymentSchema = z.object({
   house_id: uuid,
@@ -298,7 +298,7 @@ export async function deletePayment(input: {
   return {};
 }
 
-// ── Documents (Dokumentacionet + Planimetria) ─────────────────────────────
+// ── Documents (Dokumentacionet + Planimetria) ──────────────────────
 
 const addDocumentSchema = z.object({
   house_id: uuid,
@@ -339,16 +339,80 @@ export async function addDocument(input: {
   return {};
 }
 
+const documentFileSchema = z.object({
+  bucket: z.string().trim().min(1),
+  file_path: z.string().trim().min(1),
+  file_name: z.string().trim().min(1),
+  mime_type: z.string().trim().nullable().optional(),
+  size_bytes: z.number().nullable().optional(),
+});
+
+const addDocumentsSchema = z
+  .object({
+    houseId: uuid.optional(),
+    typeId: uuid.optional(),
+    category: documentCategory,
+    files: z.array(documentFileSchema).min(1, "Asnjë skedar për të ruajtur."),
+  })
+  .refine(
+    (v) => !!v.houseId || !!v.typeId,
+    "Mungon shtëpia ose tipi."
+  );
+
+/** Insert one `documents` row per uploaded file (house- or type-level). */
+export async function addDocuments(input: {
+  houseId?: string;
+  typeId?: string;
+  category: "documentation" | "floorplan" | "other";
+  files: {
+    bucket: string;
+    file_path: string;
+    file_name: string;
+    mime_type: string | null;
+    size_bytes: number | null;
+  }[];
+}): Promise<ActionResult> {
+  const parsed = addDocumentsSchema.safeParse(input);
+  if (!parsed.success) return { error: firstError(parsed.error) };
+
+  const { houseId, typeId, category, files } = parsed.data;
+
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { error } = await supabase.from("documents").insert(
+    files.map((f) => ({
+      house_id: houseId ?? null,
+      type_id: typeId ?? null,
+      category,
+      bucket: f.bucket,
+      file_path: f.file_path,
+      file_name: f.file_name,
+      mime_type: f.mime_type ?? null,
+      size_bytes: f.size_bytes ?? null,
+      uploaded_by: user?.id ?? null,
+    }))
+  );
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/properties");
+  if (houseId) revalidatePath(`/properties/${houseId}`);
+  return {};
+}
+
 export async function deleteDocument(input: {
   id: string;
-  house_id: string;
+  house_id?: string | null;
   bucket: string;
   path: string;
 }): Promise<ActionResult> {
   const parsed = z
     .object({
       id: uuid,
-      house_id: uuid,
+      house_id: uuid.nullable().optional(),
       bucket: z.string().trim().min(1),
       path: z.string().trim().min(1),
     })
@@ -367,6 +431,7 @@ export async function deleteDocument(input: {
 
   if (error) return { error: error.message };
 
-  revalidatePath(`/properties/${parsed.data.house_id}`);
+  revalidatePath("/properties");
+  if (parsed.data.house_id) revalidatePath(`/properties/${parsed.data.house_id}`);
   return {};
 }

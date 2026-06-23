@@ -1,18 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, Loader2, Trash2 } from "lucide-react";
+import { FileText, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import type { DocumentRow } from "@/lib/types";
 import { formatDate, formatFileSize } from "@/lib/format";
 import { documentCategoryLabel } from "@/lib/labels";
-import { addDocument, deleteDocument } from "@/app/(app)/properties/actions";
-import {
-  FileUploadField,
-  type UploadedFileMeta,
-} from "@/components/file-upload-field";
+import { addDocuments, deleteDocument } from "@/app/(app)/properties/actions";
+import { MultiFileUpload } from "@/components/multi-file-upload";
 import { FileLink } from "@/components/file-link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -65,44 +61,27 @@ export function DocumentsTab({
   documents: DocumentRow[];
 }) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
-
-  function handleUploaded(meta: UploadedFileMeta) {
-    startTransition(async () => {
-      const res = await addDocument({
-        house_id: houseId,
-        category: "documentation",
-        bucket: meta.bucket,
-        file_path: meta.file_path,
-        file_name: meta.file_name,
-        mime_type: meta.mime_type,
-        size_bytes: meta.size_bytes,
-      });
-      if (res?.error) {
-        toast.error(res.error);
-        return;
-      }
-      toast.success("Dokumenti u ngarkua.");
-      router.refresh();
-    });
-  }
 
   return (
     <div className="space-y-5">
       <div className="space-y-2">
         <h3 className="text-sm font-semibold">Ngarko dokument</h3>
-        <FileUploadField
+        <MultiFileUpload
           bucket="documents"
           pathPrefix={houseId}
-          onUploaded={handleUploaded}
-          disabled={pending}
+          onUploaded={async (files) => {
+            const r = await addDocuments({
+              houseId,
+              category: "documentation",
+              files,
+            });
+            if (r.error) toast.error(r.error);
+            else {
+              toast.success("U ngarkua.");
+              router.refresh();
+            }
+          }}
         />
-        {pending && (
-          <p className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            Duke ruajtur dokumentin…
-          </p>
-        )}
       </div>
 
       {documents.length === 0 ? (

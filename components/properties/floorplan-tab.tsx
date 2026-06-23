@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ImageIcon, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -8,11 +8,8 @@ import { toast } from "sonner";
 import type { DocumentRow } from "@/lib/types";
 import { formatDate, formatFileSize } from "@/lib/format";
 import { createSignedUrlAction } from "@/lib/actions/storage";
-import { addDocument, deleteDocument } from "@/app/(app)/properties/actions";
-import {
-  FileUploadField,
-  type UploadedFileMeta,
-} from "@/components/file-upload-field";
+import { addDocuments, deleteDocument } from "@/app/(app)/properties/actions";
+import { MultiFileUpload } from "@/components/multi-file-upload";
 import { FileLink } from "@/components/file-link";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/empty-state";
@@ -114,59 +111,48 @@ function DeleteFloorplanButton({ doc }: { doc: DocumentRow }) {
 }
 
 export function FloorplanTab({
-  houseId,
+  typeId,
+  typeName,
   floorplans,
 }: {
-  houseId: string;
+  typeId: string;
+  typeName: string;
   floorplans: DocumentRow[];
 }) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
-
-  function handleUploaded(meta: UploadedFileMeta) {
-    startTransition(async () => {
-      const res = await addDocument({
-        house_id: houseId,
-        category: "floorplan",
-        bucket: meta.bucket,
-        file_path: meta.file_path,
-        file_name: meta.file_name,
-        mime_type: meta.mime_type,
-        size_bytes: meta.size_bytes,
-      });
-      if (res?.error) {
-        toast.error(res.error);
-        return;
-      }
-      toast.success("Planimetria u ngarkua.");
-      router.refresh();
-    });
-  }
 
   return (
     <div className="space-y-5">
       <div className="space-y-2">
-        <h3 className="text-sm font-semibold">Ngarko planimetri</h3>
-        <FileUploadField
+        <h3 className="text-sm font-semibold">Planimetria — {typeName}</h3>
+        <p className="text-xs text-muted-foreground">
+          Ngarkohet një herë për tipin — shfaqet te të gjitha shtëpitë e tipit{" "}
+          {typeName}.
+        </p>
+        <MultiFileUpload
           bucket="floorplans"
-          pathPrefix={houseId}
+          pathPrefix={typeId}
           accept="image/*,application/pdf"
-          onUploaded={handleUploaded}
-          disabled={pending}
+          onUploaded={async (files) => {
+            const r = await addDocuments({
+              typeId,
+              category: "floorplan",
+              files,
+            });
+            if (r.error) toast.error(r.error);
+            else {
+              toast.success("U ngarkua.");
+              router.refresh();
+            }
+          }}
         />
-        {pending && (
-          <p className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            Duke ruajtur planimetrinë…
-          </p>
-        )}
       </div>
 
       {floorplans.length === 0 ? (
         <EmptyState
           icon={ImageIcon}
           title="Asnjë planimetri"
-          description="Ngarkoni planimetrinë (imazh ose PDF) për këtë shtëpi."
+          description={`Ngarkoni planimetrinë (imazh ose PDF) për tipin ${typeName}.`}
         />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

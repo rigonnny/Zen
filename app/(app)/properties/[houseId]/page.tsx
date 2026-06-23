@@ -55,33 +55,40 @@ export default async function HouseDetailPage({
   if (!houseData) notFound();
   const house = houseData as HouseFinancials;
 
-  const [paymentsResult, documentsResult, typesResult] = await Promise.all([
-    supabase
-      .from("transactions")
-      .select("*")
-      .eq("house_id", houseId)
-      .eq("kind", "income")
-      .order("occurred_on", { ascending: false }),
-    supabase
-      .from("documents")
-      .select("*")
-      .eq("house_id", houseId)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("house_types")
-      .select("*")
-      .order("sort_order", { ascending: true })
-      .order("name", { ascending: true }),
-  ]);
+  const [paymentsResult, documentsResult, floorplansResult, typesResult] =
+    await Promise.all([
+      supabase
+        .from("transactions")
+        .select("*")
+        .eq("house_id", houseId)
+        .eq("kind", "income")
+        .order("occurred_on", { ascending: false }),
+      supabase
+        .from("documents")
+        .select("*")
+        .eq("house_id", houseId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("documents")
+        .select("*")
+        .eq("type_id", house.type_id)
+        .eq("category", "floorplan")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("house_types")
+        .select("*")
+        .order("sort_order", { ascending: true })
+        .order("name", { ascending: true }),
+    ]);
 
   const payments = (paymentsResult.data ?? []) as Transaction[];
   const allDocuments = (documentsResult.data ?? []) as DocumentRow[];
+  const floorplans = (floorplansResult.data ?? []) as DocumentRow[];
   const types = (typesResult.data ?? []) as HouseType[];
 
   const documents = allDocuments.filter(
     (d) => d.category === "documentation" || d.category === "other"
   );
-  const floorplans = allDocuments.filter((d) => d.category === "floorplan");
 
   const salePrice = Number(house.sale_price ?? 0);
   const paid = Number(house.total_paid ?? 0);
@@ -179,7 +186,11 @@ export default async function HouseDetailPage({
               <DocumentsTab houseId={house.id} documents={documents} />
             </TabsContent>
             <TabsContent value="floorplan" className="mt-6">
-              <FloorplanTab houseId={house.id} floorplans={floorplans} />
+              <FloorplanTab
+                typeId={house.type_id}
+                typeName={house.type_name}
+                floorplans={floorplans}
+              />
             </TabsContent>
             <TabsContent value="description" className="mt-6">
               <DescriptionTab
