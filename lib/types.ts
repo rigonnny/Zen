@@ -52,7 +52,8 @@ export interface Transaction {
 
 export interface DocumentRow {
   id: string;
-  house_id: string;
+  house_id: string | null;
+  type_id: string | null;
   category: DocumentCategory;
   bucket: string;
   file_path: string;
