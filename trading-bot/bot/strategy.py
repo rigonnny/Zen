@@ -113,6 +113,29 @@ class StrategyParams:
     breakout_lookback: int = 20   # candles in the Donchian channel
     trail_atr_mult: float = 3.0   # trailing distance, in ATRs
 
+    # --- Research candidates (pre-registered after the A+B review) ---
+    # entry_mode "rsi_dip" (candidate A — mean reversion): in an uptrend,
+    #   buy PANIC — a very short RSI (2 candles) collapsing below ~10 means
+    #   a sharp multi-candle drop; in uptrends such drops have historically
+    #   tended to snap back. Mirror for shorts in downtrends. This is the
+    #   OPPOSITE bet from breakout entries — it profits from the chop that
+    #   bleeds trend-following, which is exactly why it's worth testing:
+    #   uncorrelated logic, not another knob on the same idea.
+    # exit_mode "reversion" (pairs with rsi_dip): exit when the fast RSI
+    #   recovers past `reversion_exit_level` — the snap-back happened, the
+    #   trade's reason is spent. Stop-loss still attached at entry (rule #4).
+    # trend_strength_atr (candidate B — regime filter, works with ANY entry
+    #   mode): require the EMAs to be at least this many ATRs apart before
+    #   any entry. 0 = off. Rationale: nearly all of A+B's losses came from
+    #   chop, where the EMAs hug each other and every cross is noise;
+    #   demanding real separation stands the bot aside in exactly those
+    #   periods. Fewer trades, fewer fees, hopefully better ones.
+    rsi_dip_period: int = 2       # very short RSI for the dip trigger
+    rsi_dip_buy_below: float = 10.0    # long trigger level (uptrend only)
+    rsi_dip_sell_above: float = 90.0   # short trigger level (downtrend only)
+    reversion_exit_level: float = 50.0
+    trend_strength_atr: float = 0.0    # 0 = filter off
+
     def __post_init__(self) -> None:
         """Sanity-check the numbers the moment params are created."""
         if self.ema_fast >= self.ema_slow:
@@ -126,18 +149,30 @@ class StrategyParams:
                 raise ValueError(f"{name} must be >= 2.")
         if self.atr_stop_mult <= 0 or self.atr_target_mult <= 0:
             raise ValueError("ATR multiples must be positive.")
-        if self.entry_mode not in ("rsi_cross", "breakout"):
+        if self.entry_mode not in ("rsi_cross", "breakout", "rsi_dip"):
             raise ValueError(
-                f"entry_mode {self.entry_mode!r} unknown — use 'rsi_cross' or 'breakout'."
+                f"entry_mode {self.entry_mode!r} unknown — use 'rsi_cross', "
+                "'breakout' or 'rsi_dip'."
             )
-        if self.exit_mode not in ("fixed_target", "trailing"):
+        if self.exit_mode not in ("fixed_target", "trailing", "reversion"):
             raise ValueError(
-                f"exit_mode {self.exit_mode!r} unknown — use 'fixed_target' or 'trailing'."
+                f"exit_mode {self.exit_mode!r} unknown — use 'fixed_target', "
+                "'trailing' or 'reversion'."
             )
         if self.breakout_lookback < 2:
             raise ValueError("breakout_lookback must be >= 2.")
         if self.trail_atr_mult <= 0:
             raise ValueError("trail_atr_mult must be positive.")
+        if self.rsi_dip_period < 2:
+            raise ValueError("rsi_dip_period must be >= 2.")
+        if not (0 < self.rsi_dip_buy_below < self.reversion_exit_level
+                < self.rsi_dip_sell_above < 100):
+            raise ValueError(
+                "Need 0 < rsi_dip_buy_below < reversion_exit_level < "
+                "rsi_dip_sell_above < 100 — otherwise entries and exits overlap."
+            )
+        if self.trend_strength_atr < 0:
+            raise ValueError("trend_strength_atr cannot be negative.")
         # The reward-to-risk floor only applies when there IS a fixed
         # target. A trailing exit has unbounded upside — its reward isn't
         # capped, so there is no ratio to check at signal time.
@@ -178,6 +213,9 @@ def compute_indicators(df: pd.DataFrame, params: StrategyParams) -> pd.DataFrame
     out["ema_slow"] = ema(out["close"], params.ema_slow)
     out["rsi"] = rsi(out["close"], params.rsi_period)
     out["atr"] = atr(out["high"], out["low"], out["close"], params.atr_period)
+    # The very fast RSI used by the mean-reversion candidate. Cheap to
+    # compute, so we always include it — one indicator set for every mode.
+    out["rsi_fast"] = rsi(out["close"], params.rsi_dip_period)
     return out
 
 
@@ -209,7 +247,15 @@ def generate_signals(df: pd.DataFrame, params: StrategyParams | None = None) -> 
 
     out["uptrend"] = (fast > slow) & ready
 
-    if params.entry_mode == "breakout":
+    if params.entry_mode == "rsi_dip":
+        # Mean reversion: buy panic in an uptrend / sell euphoria in a
+        # downtrend. State-based (may stay true several candles in a row);
+        # the backtester/engine ignore signals while a position is open.
+        rf = out["rsi_fast"]
+        trigger_long = rf < params.rsi_dip_buy_below
+        trigger_short = rf > params.rsi_dip_sell_above
+        ready = ready & rf.notna()
+    elif params.entry_mode == "breakout":
         # Donchian breakout: the highest/lowest close of the PREVIOUS
         # `breakout_lookback` candles (shift(1) excludes today — comparing
         # today's close against a channel that already contains it could
@@ -229,6 +275,16 @@ def generate_signals(df: pd.DataFrame, params: StrategyParams | None = None) -> 
 
     long_entry = ready & (fast > slow) & trigger_long
     short_entry = ready & (fast < slow) & trigger_short
+
+    # Candidate B's regime filter: only act when the trend is STRONG —
+    # EMAs separated by at least trend_strength_atr ATRs. In chop the EMAs
+    # hug each other, so this stands the bot aside exactly where the A+B
+    # review showed the losses concentrated.
+    if params.trend_strength_atr > 0:
+        strong = (fast - slow).abs() > params.trend_strength_atr * out["atr"]
+        long_entry &= strong
+        short_entry &= strong
+
     if not params.allow_shorts:
         short_entry &= False
 
@@ -253,11 +309,20 @@ def generate_signals(df: pd.DataFrame, params: StrategyParams | None = None) -> 
     else:
         out["target_price"] = np.nan
 
-    # --- Exit rules for positions already open: the trend flipped ---
+    # --- Exit rules for positions already open ---
+    # Every mode exits on a trend flip (the reason for the trade is gone).
     trend_flipped_down = ready & (prev_fast >= prev_slow) & (fast < slow)
     trend_flipped_up = ready & (prev_fast <= prev_slow) & (fast > slow)
     out["exit_long"] = trend_flipped_down
     out["exit_short"] = trend_flipped_up
+
+    if params.exit_mode == "reversion":
+        # Mean reversion's whole thesis is "the snap-back will happen".
+        # Once the fast RSI recovers past the exit level, it HAS happened —
+        # take the profit and leave; hanging around is a different trade.
+        rf = out["rsi_fast"]
+        out["exit_long"] = out["exit_long"] | (rf > params.reversion_exit_level)
+        out["exit_short"] = out["exit_short"] | (rf < params.reversion_exit_level)
 
     return out
 

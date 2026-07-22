@@ -1,0 +1,49 @@
+# ============================================================================
+# RESEARCH CANDIDATE C — daily-only, long-only trend following.
+#
+# Pre-registered alongside candidates A and B. Test ONCE:
+#     python run_backtest.py --config config_research_c.yaml
+#
+# Thesis (stated a priori): crypto's long-run drift has been upward, longs
+# receive the market's structural attention (and shorts pay funding more
+# often than not), and the daily timeframe trades so rarely that fees
+# almost vanish. So: the same breakout/trailing system, but daily candles
+# only and longs only. Prediction: very few trades (~5/yr/market), low
+# drawdown, and returns that live or die with whether crypto has an up-year
+# — this candidate is the closest to "disciplined buy-and-hold with a
+# stop", and its honest benchmark is literally just holding BTC.
+# ============================================================================
+
+data:
+  symbols: [BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT]
+  timeframes: [1d]
+  start_date: "2022-07-01"
+  db_path: "data/market_data.db"
+  fetch_funding_rates: true
+
+strategy:
+  ema_fast: 50
+  ema_slow: 200
+  atr_period: 14
+  atr_stop_mult: 2.0
+  allow_shorts: false         # <-- long-only
+  entry_mode: breakout
+  breakout_lookback: 20
+  exit_mode: trailing
+  trail_atr_mult: 3.0
+
+risk:
+  risk_per_trade_pct: 1.0
+  max_leverage: 2.0
+  daily_loss_limit_pct: 4.0
+  max_concurrent_positions: 2
+  cooldown_hours_after_stop: 24
+  live_trading: false
+
+backtest:
+  initial_equity: 10000
+  fee_pct: 0.05
+  slippage_pct: 0.03
+  risk_per_trade_pct: 1.0
+  max_leverage: 2.0
+  oos_start: "2025-07-01"

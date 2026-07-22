@@ -1,0 +1,53 @@
+# ============================================================================
+# RESEARCH CANDIDATE A — mean reversion ("buy panic in an uptrend").
+#
+# Pre-registered BEFORE looking at any results, alongside candidates B and
+# C. Test ONCE:   python run_backtest.py --config config_research_a.yaml
+#
+# Thesis: in an uptrend, a violent 2-candle collapse (RSI-2 below 10) has
+# historically tended to snap back; enter the panic, exit when the fast RSI
+# recovers past 50. Mirror for downtrends. This profits from exactly the
+# chop that bleeds trend-following — genuinely uncorrelated logic, which is
+# the honest way to seek more return: different edges, not bigger knobs.
+#
+# Multiple-testing note (IMPORTANT): we are testing THREE candidates and
+# will naturally focus on the best one. Best-of-three flatters by luck, so
+# a candidate must look clearly good — not marginally good — to earn a
+# paper-trading slot. Marginal results = rejected.
+# ============================================================================
+
+data:
+  symbols: [BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT]
+  timeframes: [4h, 1d]
+  start_date: "2022-07-01"
+  db_path: "data/market_data.db"
+  fetch_funding_rates: true
+
+strategy:
+  ema_fast: 50
+  ema_slow: 200
+  atr_period: 14
+  atr_stop_mult: 2.0          # rule #4: protective stop in every mode
+  allow_shorts: true
+  entry_mode: rsi_dip
+  rsi_dip_period: 2
+  rsi_dip_buy_below: 10.0
+  rsi_dip_sell_above: 90.0
+  exit_mode: reversion
+  reversion_exit_level: 50.0
+
+risk:
+  risk_per_trade_pct: 1.0
+  max_leverage: 2.0
+  daily_loss_limit_pct: 4.0
+  max_concurrent_positions: 2
+  cooldown_hours_after_stop: 24
+  live_trading: false
+
+backtest:
+  initial_equity: 10000
+  fee_pct: 0.05
+  slippage_pct: 0.03
+  risk_per_trade_pct: 1.0
+  max_leverage: 2.0
+  oos_start: "2025-07-01"

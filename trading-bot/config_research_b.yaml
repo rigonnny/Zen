@@ -1,0 +1,49 @@
+# ============================================================================
+# RESEARCH CANDIDATE B — the A+B system plus a trend-STRENGTH regime filter.
+#
+# Pre-registered alongside candidates A and C. Test ONCE:
+#     python run_backtest.py --config config_research_b.yaml
+#
+# Thesis: the five-market review showed A+B's losses concentrate in chop,
+# where the EMAs hug each other and every breakout is noise. Requiring the
+# EMAs to be at least 1.0 ATR apart before entering stands the bot aside in
+# those periods. Prediction to hold me honest: fewer trades, lower fees,
+# and if the thesis is right, a better profit factor; if the thesis is
+# wrong, it will just miss the early part of every real trend and look
+# slightly worse. The filter value (1.0) was chosen a priori, not tuned.
+# ============================================================================
+
+data:
+  symbols: [BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT]
+  timeframes: [4h, 1d]
+  start_date: "2022-07-01"
+  db_path: "data/market_data.db"
+  fetch_funding_rates: true
+
+strategy:
+  ema_fast: 50
+  ema_slow: 200
+  atr_period: 14
+  atr_stop_mult: 2.0
+  allow_shorts: true
+  entry_mode: breakout
+  breakout_lookback: 20
+  exit_mode: trailing
+  trail_atr_mult: 3.0
+  trend_strength_atr: 1.0     # <-- the one change vs config_variant_ab
+
+risk:
+  risk_per_trade_pct: 1.0
+  max_leverage: 2.0
+  daily_loss_limit_pct: 4.0
+  max_concurrent_positions: 2
+  cooldown_hours_after_stop: 24
+  live_trading: false
+
+backtest:
+  initial_equity: 10000
+  fee_pct: 0.05
+  slippage_pct: 0.03
+  risk_per_trade_pct: 1.0
+  max_leverage: 2.0
+  oos_start: "2025-07-01"

@@ -6,6 +6,35 @@ stands without re-reading everything.
 
 ---
 
+## 2026-07-22 — Session 10: research program built; profit-expectation reality check
+
+User asked for a strategy making "$15-20/day on $500" (= ~3-4%/DAY,
+~1,000%+/yr — arithmetically impossible as an expectation; equals turning
+$500 into ~$24M in a year compounded). Declined to chase it; explained
+the math in chat. Built the honest alternative instead — three
+pre-registered research candidates, each tested ONCE, best-of-three
+discount applied (marginal results = rejected):
+
+- A `config_research_a.yaml` — RSI-2 mean reversion (buy panic in
+  uptrend, exit on snap-back past 50). New entry_mode=rsi_dip,
+  exit_mode=reversion. Uncorrelated with trend logic by design.
+- B `config_research_b.yaml` — A+B breakout/trailing + trend-STRENGTH
+  regime filter (EMAs >= 1.0 ATR apart; value chosen a priori). New param
+  trend_strength_atr (0=off; only ever REMOVES trades — tested).
+- C `config_research_c.yaml` — daily-only long-only breakout/trailing;
+  benchmark stated a priori: just holding BTC.
+
+6 new tests (130 total; test thresholds loosened to 20/80 because dips
+violent enough for RSI-2<10 flip the tiny 3/6 test EMAs — production
+50/200 unaffected). Engine/backtester unchanged except the two new modes
+flow through existing exit-flag machinery.
+
+**Next:** user runs the three backtests once each, results reviewed
+against pre-registered predictions. Paper run (config_variant_ab)
+continues meanwhile.
+
+---
+
 ## 2026-07-22 — Session 9: five-market review, portfolio run live, kill switch verified
 
 **Five-market backtest reviewed (data clean, all symbols kept):** variant
