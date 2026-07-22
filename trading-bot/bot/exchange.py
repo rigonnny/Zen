@@ -157,7 +157,10 @@ class FuturesExchange:
         return out
 
     def get_open_orders(self, symbol: str) -> list[dict]:
-        return self._request("GET", "/fapi/v1/openOrders", {"symbol": symbol})
+        """Open orders for a symbol — regular and conditional combined."""
+        regular = self._request("GET", "/fapi/v1/openOrders", {"symbol": symbol})
+        algo = self._request("GET", "/fapi/v1/openAlgoOrders", {"symbol": symbol})
+        return list(regular) + list(algo)
 
     # ------------------------------------------------------------------ #
     # Rounding rules (exchangeInfo)
@@ -249,26 +252,40 @@ class FuturesExchange:
     def place_stop_loss(self, symbol: str, position_side: int, stop_price: float) -> dict:
         """Attach a stop that closes the WHOLE position when touched.
 
-        STOP_MARKET + closePosition=true is Binance's native server-side
-        stop: it lives on the exchange, so it triggers even if our bot is
-        offline — which is exactly what a protective stop must do.
-        position_side: +1 for a long (stop SELLS below), -1 short (BUYS above).
+        A STOP_MARKET with closePosition=true is Binance's native
+        server-side stop: it lives on the exchange, so it triggers even if
+        our bot is offline — which is exactly what a protective stop must
+        do. position_side: +1 long (stop SELLS below), -1 short (BUYS above).
+
+        Since 2025-12-09, conditional orders like this one go to the Algo
+        Order API (POST /fapi/v1/algoOrder, algoType=CONDITIONAL, trigger
+        field named triggerPrice) — the classic /fapi/v1/order endpoint
+        rejects them with error -4120. Discovered, naturally, by the first
+        live fire drill.
         """
         side = "SELL" if position_side == 1 else "BUY"
         params = {
-            "symbol": symbol, "side": side, "type": "STOP_MARKET",
-            "stopPrice": self.format_price(symbol, stop_price),
+            "symbol": symbol, "side": side,
+            "algoType": "CONDITIONAL", "type": "STOP_MARKET",
+            "triggerPrice": self.format_price(symbol, stop_price),
             "closePosition": "true",
         }
-        order = self._request("POST", "/fapi/v1/order", params)
-        log.info("STOP for %s %s @ %s → order id %s", symbol,
+        order = self._request("POST", "/fapi/v1/algoOrder", params)
+        log.info("STOP for %s %s @ %s → algo id %s", symbol,
                  "long" if position_side == 1 else "short",
-                 params["stopPrice"], order.get("orderId"))
+                 params["triggerPrice"], order.get("algoId"))
         return order
 
     def cancel_all_orders(self, symbol: str) -> None:
+        """Cancel every open order on a symbol — regular AND conditional.
+
+        Two calls because Binance now keeps them in separate books:
+        /fapi/v1/allOpenOrders clears regular orders, /fapi/v1/algoOpenOrders
+        clears conditional ones (our stops live there).
+        """
         self._request("DELETE", "/fapi/v1/allOpenOrders", {"symbol": symbol})
-        log.info("Cancelled all open orders for %s.", symbol)
+        self._request("DELETE", "/fapi/v1/algoOpenOrders", {"symbol": symbol})
+        log.info("Cancelled all open orders (incl. stops) for %s.", symbol)
 
     # ------------------------------------------------------------------ #
     # Market data (public, same venue as the orders)
@@ -296,8 +313,15 @@ class FuturesExchange:
         report of what was done. Used by the kill switch."""
         actions = []
         positions = self.get_positions()
+        # Cancel orders on every symbol that has a position OR any open
+        # order — an aborted entry can leave an orphaned stop on a symbol
+        # with no position, and the kill switch must sweep those too.
         symbols = {p["symbol"] for p in positions}
-        for symbol in symbols:
+        for o in self._request("GET", "/fapi/v1/openOrders", {}):
+            symbols.add(o["symbol"])
+        for o in self._request("GET", "/fapi/v1/openAlgoOrders", {}):
+            symbols.add(o["symbol"])
+        for symbol in sorted(symbols):
             self.cancel_all_orders(symbol)
             actions.append(f"cancelled open orders on {symbol}")
         for p in positions:

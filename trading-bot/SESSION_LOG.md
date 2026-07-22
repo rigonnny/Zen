@@ -6,6 +6,29 @@ stands without re-reading everything.
 
 ---
 
+## 2026-07-22 — Session 8c: drill #3 → Binance Algo Order migration (-4120)
+
+Drill #3: entry filled cleanly (qty 0.1064 — Decimal fix works), stop
+rejected with -4120 "use the Algo Order API endpoints". Cause: Binance
+migrated USDT-M conditional orders (STOP_MARKET etc.) off /fapi/v1/order
+to an Algo service effective 2025-12-09 (after this client was written).
+Rule-#4 escape hatch closed the position correctly again.
+
+**Fixed (researched via web: Binance change log, freqtrade #12610/#12681,
+tiagosiebler/binance client source):**
+- place_stop_loss → POST /fapi/v1/algoOrder with algoType=CONDITIONAL,
+  type=STOP_MARKET, triggerPrice (renamed from stopPrice), closePosition.
+- cancel_all_orders → clears BOTH books (/fapi/v1/allOpenOrders +
+  /fapi/v1/algoOpenOrders).
+- get_open_orders merges /fapi/v1/openOrders + /fapi/v1/openAlgoOrders.
+- flatten_everything sweeps symbols with positions OR any open/algo order
+  (orphaned stops on flat symbols get cancelled by the kill switch).
+- 3 new wire-format regression tests via a RecordingExchange (124 total).
+
+User to re-run the drill (attempt #4).
+
+---
+
 ## 2026-07-22 — Session 8b: first-drill bug found & fixed (-1111 precision)
 
 Fire drill run #1 on the real testnet: entry FILLED (~7,020 USDT of BTC,

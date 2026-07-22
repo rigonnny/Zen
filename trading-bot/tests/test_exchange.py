@@ -120,6 +120,56 @@ def test_min_viable_quantity_respects_notional(monkeypatch):
     assert ex.min_viable_quantity("BTCUSDT", 50_000) == pytest.approx(0.002)
 
 
+class RecordingExchange(FuturesExchange):
+    """Captures requests instead of sending them — for wire-format tests."""
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.sent = []
+
+    def _request(self, method, path, params=None, signed=True):
+        self.sent.append((method, path, dict(params or {})))
+        return {"algoId": 1, "orderId": 1}
+
+
+def test_stop_loss_uses_algo_order_endpoint(monkeypatch):
+    """Regression for Binance -4120 (Dec 2025 migration, found by the fire
+    drill): conditional stops must go to /fapi/v1/algoOrder with
+    algoType=CONDITIONAL and the trigger named triggerPrice."""
+    monkeypatch.delenv("CONFIRM_LIVE_TRADING", raising=False)
+    ex = RecordingExchange("k", "s")
+    stub_filters(ex)
+    ex.place_stop_loss("BTCUSDT", 1, 63795.1000000006)
+
+    method, path, params = ex.sent[0]
+    assert (method, path) == ("POST", "/fapi/v1/algoOrder")
+    assert params["algoType"] == "CONDITIONAL"
+    assert params["type"] == "STOP_MARKET"
+    assert params["side"] == "SELL"                    # long → stop sells
+    assert params["closePosition"] == "true"
+    assert params["triggerPrice"] == "63795.10"        # clean, tick-snapped
+    assert "stopPrice" not in params                   # old param name gone
+
+
+def test_cancel_all_clears_both_order_books(monkeypatch):
+    monkeypatch.delenv("CONFIRM_LIVE_TRADING", raising=False)
+    ex = RecordingExchange("k", "s")
+    ex.cancel_all_orders("BTCUSDT")
+    paths = [(m, p) for m, p, _ in ex.sent]
+    assert ("DELETE", "/fapi/v1/allOpenOrders") in paths
+    assert ("DELETE", "/fapi/v1/algoOpenOrders") in paths
+
+
+def test_market_order_sends_clean_quantity_string(monkeypatch):
+    monkeypatch.delenv("CONFIRM_LIVE_TRADING", raising=False)
+    ex = RecordingExchange("k", "s")
+    stub_filters(ex)
+    ex.market_order("BTCUSDT", "BUY", 0.10600000000000001)
+    _, path, params = ex.sent[0]
+    assert path == "/fapi/v1/order"                    # market orders unchanged
+    assert params["quantity"] == "0.106"
+
+
 def test_wire_format_never_has_float_garbage(monkeypatch):
     """Regression for Binance error -1111, caught by the first live fire
     drill: float math turned 106 steps of 0.001 into 0.10600000000000001
