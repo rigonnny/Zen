@@ -38,3 +38,23 @@ data:
   # multi-day swing trade these payments add up, so an honest backtest
   # (Phase 3) must include them.
   fetch_funding_rates: true
+
+strategy:
+  # Phase 2: the strategy's tunable numbers. Full explanation of the rules
+  # lives at the top of bot/strategy.py — short version: trade only in the
+  # trend direction (EMA fast vs slow), enter when RSI crosses the midline,
+  # stop-loss and take-profit placed as multiples of ATR.
+  #
+  # All values here are optional — anything omitted uses the defaults in
+  # bot/strategy.py (shown below). A word of discipline: resist the urge to
+  # twiddle these until a backtest looks great. That's called overfitting,
+  # and it produces strategies that only work on the past.
+  ema_fast: 50          # trend: "fast" average, in candles
+  ema_slow: 200         # trend: "slow" average, in candles
+  rsi_period: 14        # momentum lookback
+  rsi_midline: 50.0     # the cross level that triggers entries
+  atr_period: 14        # volatility lookback
+  atr_stop_mult: 2.0    # stop-loss distance = 2.0 × ATR
+  atr_target_mult: 3.0  # take-profit distance = 3.0 × ATR (→ 1.5:1 reward:risk)
+  min_reward_risk: 1.5  # signals below this ratio are refused outright
+  allow_shorts: true    # futures can profit from falls too; set false for long-only

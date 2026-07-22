@@ -14,8 +14,8 @@ Futures Testnet (fake money) until a separate, explicit step much later.**
 
 | Phase | What | Status |
 |---|---|---|
-| 1 | Data pipeline (download & store historical candles) | ✅ built |
-| 2 | Strategy / signal logic (EMA, RSI, ATR rules) | ⏳ not started |
+| 1 | Data pipeline (download & store historical candles) | ✅ built & verified on real data |
+| 2 | Strategy / signal logic (EMA, RSI, ATR rules) | ✅ built |
 | 3 | Backtesting engine (fees, funding, slippage, walk-forward) | ⏳ not started |
 | 4 | Risk-management module (the 7 safety rules) | ⏳ not started |
 | 5 | Paper trading on Binance Futures **Testnet** | ⏳ not started |
@@ -89,6 +89,31 @@ python fetch_data.py --verify    # check the stored data for gaps
   Small per payment, but it adds up over a multi-day swing trade, so honest
   backtesting (Phase 3) needs this history.
 
+## Phase 2: the strategy
+
+The rules live in `bot/strategy.py` (full plain-English write-up at the top
+of that file). In one breath: **trade only in the direction of the trend
+(EMA 50 vs EMA 200), enter when momentum turns back that way (RSI 14
+crossing 50), and attach a stop-loss at 2×ATR and a take-profit at 3×ATR to
+every signal — giving every trade a 1.5:1 reward-to-risk ratio.** Shorts
+are the mirror image. If the trend flips, any open position exits.
+
+The indicator math is hand-implemented in `bot/indicators.py` — about 100
+readable lines — and unit-tested against values computed by hand on paper.
+All tunables sit in the `strategy:` section of `config.yaml`.
+
+To see what the strategy would have signaled on your downloaded data:
+
+```bash
+python show_signals.py            # recent signals, with plain-English reasons
+python show_signals.py --all      # the full history
+```
+
+Expect sparse output — a swing strategy on 4h/1d candles signals a few
+times a month per market, and long quiet stretches are by design. Whether
+these signals *made money* after fees, funding and slippage is Phase 3's
+question, not Phase 2's; resist judging the strategy from this list alone.
+
 ## Running the tests
 
 ```bash
@@ -105,9 +130,12 @@ no-duplicates guarantee, API pagination, the still-forming-candle filter
 ```
 trading-bot/
 ├── config.yaml            # what to download / (later) how to trade
-├── fetch_data.py          # Phase 1 command-line entry point
+├── fetch_data.py          # Phase 1 CLI: download/update market data
+├── show_signals.py        # Phase 2 CLI: print historical signals + reasons
 ├── bot/
 │   ├── config.py          # loads & validates config.yaml
+│   ├── indicators.py      # EMA / RSI / ATR math, hand-implemented & tested
+│   ├── strategy.py        # the entry/exit rules (read its top docstring!)
 │   └── data/
 │       ├── binance_client.py  # talks to Binance's public API (retries, paging)
 │       ├── storage.py         # SQLite read/write layer

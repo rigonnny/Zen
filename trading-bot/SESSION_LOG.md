@@ -6,6 +6,41 @@ stands without re-reading everything.
 
 ---
 
+## 2026-07-22 — Session 2: Phase 2 (indicators + strategy rules)
+
+**User confirmations:** Phase 1 verified working on the user's Mac
+(Python 3.9 — code kept 3.9-compatible): 8,894×4h + 1,482×1d candles per
+symbol, no gaps. Defaults confirmed: symbols BTCUSDT+ETHUSDT, history from
+2022-07-01.
+
+**Built:**
+- `bot/indicators.py` — EMA, SMA, RSI (Wilder), ATR (Wilder) implemented
+  by hand (~100 lines) instead of pulling in pandas-ta: readable math, no
+  library ambiguity, and unit tests pin each one to hand-computed values.
+- `bot/strategy.py` — trend-following pullback rules: long = EMA50>EMA200
+  AND RSI14 crosses up through 50; short = mirror. Every signal carries a
+  mandatory stop (2×ATR) and target (3×ATR) → 1.5:1 reward-to-risk,
+  enforced as a validated minimum in StrategyParams. Trend flip = exit
+  signal. Pure function: candles in → signals out; no sizing/account logic
+  (that's Phase 4). `explain_row()` renders any signal as plain English.
+- `strategy:` section added to config.yaml (unknown keys rejected as typos).
+- `show_signals.py` — read-only CLI to print historical signals with
+  reasons over the user's stored data.
+- 21 new tests (45 total, all passing), including hand-computed RSI/ATR/EMA
+  values and an explicit no-lookahead-bias test (truncate the future,
+  recompute, assert identical signals).
+
+**Environment note:** sandbox DB is empty (no network to Binance), so
+`show_signals.py` was smoke-tested against synthetic data only; entries are
+exercised by unit tests. User should run it on their real data.
+
+**Next up (Phase 3, after user review):** backtesting engine — next-open
+fills, taker fees, slippage, funding costs; walk-forward / out-of-sample
+split; report return, Sharpe/Sortino, max drawdown, win rate, profit
+factor, avg win/loss, trade count.
+
+---
+
 ## 2026-07-22 — Session 1: project scaffolding + Phase 1 (data pipeline)
 
 **Built:**
