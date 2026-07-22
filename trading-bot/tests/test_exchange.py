@@ -95,8 +95,8 @@ def test_signature_depends_on_every_param(monkeypatch):
 # ---------------------------------------------------------------------- #
 def stub_filters(ex):
     ex._filters = {"BTCUSDT": {
-        "step_size": 0.001, "min_qty": 0.001,
-        "tick_size": 0.10, "min_notional": 100.0,
+        "step_size_str": "0.001", "min_qty": 0.001,
+        "tick_size_str": "0.10", "min_notional": 100.0,
     }}
 
 
@@ -118,3 +118,17 @@ def test_min_viable_quantity_respects_notional(monkeypatch):
     stub_filters(ex)
     # At price 50,000: min notional 100 USDT → 0.002; bigger than min_qty.
     assert ex.min_viable_quantity("BTCUSDT", 50_000) == pytest.approx(0.002)
+
+
+def test_wire_format_never_has_float_garbage(monkeypatch):
+    """Regression for Binance error -1111, caught by the first live fire
+    drill: float math turned 106 steps of 0.001 into 0.10600000000000001
+    and the exchange rejected the order. Wire strings must be exact."""
+    ex = make(monkeypatch)
+    stub_filters(ex)
+    assert ex.format_quantity("BTCUSDT", 0.1066) == "0.106"
+    assert ex.format_quantity("BTCUSDT", 0.10600000000000001) == "0.106"
+    assert ex.format_price("BTCUSDT", 65861.63) == "65861.60"
+    # Tiny quantities must be fixed-point, never scientific notation:
+    ex._filters["BTCUSDT"]["step_size_str"] = "0.00001"
+    assert ex.format_quantity("BTCUSDT", 0.00005) == "0.00005"

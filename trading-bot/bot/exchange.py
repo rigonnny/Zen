@@ -32,10 +32,10 @@ from __future__ import annotations
 import hashlib
 import hmac
 import logging
-import math
 import os
 import time
 import urllib.parse
+from decimal import ROUND_DOWN, Decimal
 
 import requests
 
@@ -173,23 +173,52 @@ class FuturesExchange:
             for s in info["symbols"]:
                 fs = {f["filterType"]: f for f in s["filters"]}
                 self._filters[s["symbol"]] = {
-                    "step_size": float(fs["LOT_SIZE"]["stepSize"]),
+                    # Keep the exchange's own strings for exact Decimal math;
+                    # floats only for quick comparisons.
+                    "step_size_str": fs["LOT_SIZE"]["stepSize"],
+                    "tick_size_str": fs["PRICE_FILTER"]["tickSize"],
                     "min_qty": float(fs["LOT_SIZE"]["minQty"]),
-                    "tick_size": float(fs["PRICE_FILTER"]["tickSize"]),
                     "min_notional": float(fs.get("MIN_NOTIONAL", {}).get("notional", 0.0)),
                 }
         if symbol not in self._filters:
             raise ExchangeError(f"Unknown symbol {symbol!r} on this exchange.")
         return self._filters[symbol]
 
+    @staticmethod
+    def _quantize_down(value: float, step_str: str) -> Decimal:
+        """Snap value DOWN onto a grid of size `step`, exactly.
+
+        Done in Decimal, not float, arithmetic. In binary floating point
+        106 * 0.001 is 0.10600000000000001 — and sending that to Binance
+        earns error -1111 'Precision is over the maximum defined for this
+        asset' (a real bug caught by the first live fire drill). Decimal
+        works in base ten, so 106 * 0.001 is exactly 0.106.
+        """
+        step = Decimal(step_str)
+        return (Decimal(str(value)) / step).to_integral_value(rounding=ROUND_DOWN) * step
+
     def round_quantity(self, symbol: str, quantity: float) -> float:
         """Round DOWN to the symbol's quantity grid (down = never oversize)."""
-        step = self._symbol_filters(symbol)["step_size"]
-        return math.floor(quantity / step) * step
+        f = self._symbol_filters(symbol)
+        return float(self._quantize_down(quantity, f["step_size_str"]))
 
     def round_price(self, symbol: str, price: float) -> float:
-        tick = self._symbol_filters(symbol)["tick_size"]
-        return round(math.floor(price / tick) * tick, 10)
+        f = self._symbol_filters(symbol)
+        return float(self._quantize_down(price, f["tick_size_str"]))
+
+    def format_quantity(self, symbol: str, quantity: float) -> str:
+        """Wire-format quantity: grid-snapped, plain fixed-point string.
+
+        Orders always send THIS, never a raw float — Python floats can
+        render as '0.10600000000000001' or '5e-05', both of which the
+        exchange rejects.
+        """
+        f = self._symbol_filters(symbol)
+        return format(self._quantize_down(quantity, f["step_size_str"]), "f")
+
+    def format_price(self, symbol: str, price: float) -> str:
+        f = self._symbol_filters(symbol)
+        return format(self._quantize_down(price, f["tick_size_str"]), "f")
 
     def min_viable_quantity(self, symbol: str, price: float) -> float:
         """Smallest quantity the exchange will accept at this price."""
@@ -208,7 +237,7 @@ class FuturesExchange:
         closing a long into opening a short."""
         params = {
             "symbol": symbol, "side": side, "type": "MARKET",
-            "quantity": quantity,
+            "quantity": self.format_quantity(symbol, quantity),
         }
         if reduce_only:
             params["reduceOnly"] = "true"
@@ -228,7 +257,7 @@ class FuturesExchange:
         side = "SELL" if position_side == 1 else "BUY"
         params = {
             "symbol": symbol, "side": side, "type": "STOP_MARKET",
-            "stopPrice": self.round_price(symbol, stop_price),
+            "stopPrice": self.format_price(symbol, stop_price),
             "closePosition": "true",
         }
         order = self._request("POST", "/fapi/v1/order", params)

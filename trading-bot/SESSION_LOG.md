@@ -6,6 +6,24 @@ stands without re-reading everything.
 
 ---
 
+## 2026-07-22 — Session 8b: first-drill bug found & fixed (-1111 precision)
+
+Fire drill run #1 on the real testnet: entry FILLED (~7,020 USDT of BTC,
+1%-risk sizing correct), stop placement REJECTED, engine correctly closed
+the position within 1 second (rule #4 escape hatch — observed working in
+production). Drill #2 surfaced the root cause once error logging was
+added: Binance -1111 "Precision is over the maximum defined for this
+asset" — float grid-rounding (106*0.001 = 0.10600000000000001) leaked
+into order params.
+
+**Fixed:** exchange rounding now uses exact Decimal math on the
+exchange's own filter strings; orders send fixed-point wire strings via
+format_quantity/format_price (never raw floats, never scientific
+notation). Engine abort paths now log the exchange's verbatim error.
+Regression test added (121 total, all passing). User to re-run the drill.
+
+---
+
 ## 2026-07-22 — Session 8: fire drill + Option 1 (more markets)
 
 User wanted a guaranteed trade within the hour to watch the machinery,
