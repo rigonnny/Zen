@@ -6,6 +6,19 @@ stands without re-reading everything.
 
 ---
 
+## 2026-07-22 — Session 6b: first testnet contact VERIFIED
+
+User created demo/testnet keys (demo.binance.com, "System generated" HMAC
+type), installed python-dotenv, and ran
+`python run_paper.py --config config_variant_ab.yaml --once`.
+Result: authenticated to testnet, fetched live candles (BTC 65,813 / ETH
+1,913), computed signals, logged `no_signal` for both symbols to console
+and logs/decisions-*.jsonl. No API-shape surprises. Phases 1-5 are now all
+verified against the real (test) world. Bot to run as an ongoing systems
+test; Phase 6 remains locked (no strategy has demonstrated an edge).
+
+---
+
 ## 2026-07-22 — Session 6: Phase 5 (testnet paper-trading engine)
 
 **Variant A+B verdict on real data (user's machine, partial output seen —
