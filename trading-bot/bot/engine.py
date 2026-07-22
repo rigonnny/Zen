@@ -303,8 +303,9 @@ class TradingEngine:
                 self.exchange.cancel_all_orders(symbol)
                 try:
                     self.exchange.place_stop_loss(symbol, side, trail)
-                except Exception:
+                except Exception as exc:
                     # No stop on the exchange = rule #4 violated. Close now.
+                    log.exception("Trailing stop replacement failed for %s", symbol)
                     order_side = "SELL" if side == LONG else "BUY"
                     self.exchange.market_order(symbol, order_side, meta["size"],
                                                reduce_only=True)
@@ -312,6 +313,7 @@ class TradingEngine:
                     self.risk.register_exit(symbol, est_pnl, hit_stop=False, now=now)
                     del self.positions[symbol]
                     self.decisions.log("emergency_exit", symbol,
+                                       error=str(exc),
                                        detail="failed to replace trailing stop; "
                                               "closed position instead")
                     return
@@ -348,11 +350,13 @@ class TradingEngine:
         self.exchange.market_order(symbol, order_side, qty)
         try:
             self.exchange.place_stop_loss(symbol, side, stop)
-        except Exception:
+        except Exception as exc:
             # Could not attach the stop → the position may not live. Undo.
+            log.exception("Stop placement failed for %s", symbol)
             undo = "SELL" if side == LONG else "BUY"
             self.exchange.market_order(symbol, undo, qty, reduce_only=True)
             self.decisions.log("entry_aborted", symbol,
+                               error=str(exc),
                                detail="stop-loss placement failed; position "
                                       "closed immediately (rule #4)")
             return
