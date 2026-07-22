@@ -6,6 +6,44 @@ stands without re-reading everything.
 
 ---
 
+## 2026-07-22 — Session 4: Phase 4 (risk-management module)
+
+**Backtest verdict on real data (user's machine):** the v1 strategy LOSES
+across both markets — BTC 4h profit factor 0.87 (52 trades), ETH 1d 0.63
+(29 trades); win rates 31–38% vs ~42% breakeven need; negative in nearly
+every year; max drawdown ~10-12%; longest losing streak 8. NOT an
+overfitting signature (in-sample equally weak — the strategy was never
+fitted); it simply has no edge as configured. Risk machinery performed as
+designed (losses small and uniform). User chose to proceed on both tracks:
+build Phase 4 now, revisit strategy with pre-registered variants after.
+
+**Built:**
+- `bot/risk.py` — the seven safety rules as standalone code:
+  RiskConfig (validated; HARD ceilings compiled in: risk ≤2%, leverage ≤3×,
+  loud warning >2×; live_trading defaults False), validate_protective_stop
+  (rule #4: no stop / wrong-side stop → refuse), position_size (rule #3
+  fixed-fractional + rule #2 leverage cap; explicit `side` argument so a
+  wrong-side stop can't be silently reinterpreted), RiskManager (rule #5
+  daily circuit breaker keyed to UTC day-start equity; rule #7 kill-switch
+  state, one-way per process; max concurrent positions; per-symbol
+  post-stop cooldown). All time injected via `now` params for testability.
+- Backtester refactored to size positions through bot.risk.position_size —
+  one sizing implementation shared by simulation and (Phase 5) live code.
+- `risk:` section in config.yaml.
+- 18 new tests (77 total, all passing) — each rule tested for both "blocks
+  what it should" and "allows what it should".
+
+**Deferred to Phase 5 (need the exchange client):** testnet/live connection
+gating (rule #1's enforcement point), API key loading/scope docs (rule #6),
+kill switch's flatten-all-positions half (rule #7).
+
+**Track 2 pending:** user to pick from 3 pre-registered strategy variants
+(proposed in chat): A) trailing exit instead of fixed take-profit,
+B) breakout entries instead of RSI cross, C) long-only + trend-strength
+filter. Test once, accept the verdict.
+
+---
+
 ## 2026-07-22 — Session 3: Phase 3 (backtesting engine)
 
 **User confirmations:** Phase 2 reviewed — user ran show_signals.py on real

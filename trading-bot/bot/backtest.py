@@ -54,6 +54,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
+from bot.risk import position_size
 from bot.strategy import LONG, SHORT
 
 
@@ -191,23 +192,27 @@ def run_backtest(
             close_position(i, px, "trend_flip")
 
         if pos is None and pending is not None:
-            # Enter at this candle's open, slipped against us.
+            # Enter at this candle's open, slipped against us. Sizing and
+            # the leverage cap come from bot.risk — the SAME code the live
+            # bot uses, so simulation and reality cannot drift apart.
             side = pending["side"]
             fill = open_[i] * (1 + slip * side)
-            stop_dist = abs(fill - pending["stop"])
-            if stop_dist > 0:
-                risk_amount = equity * params.risk_per_trade_pct / 100.0
-                size = risk_amount / stop_dist
-                # Safety rule #2: cap notional at max_leverage × equity.
-                max_notional = equity * params.max_leverage
-                if size * fill > max_notional:
-                    size = max_notional / fill
-                notional = size * fill
+            try:
+                sized = position_size(
+                    equity, fill, pending["stop"],
+                    params.risk_per_trade_pct, params.max_leverage,
+                    side=side,
+                )
+            except ValueError:
+                # e.g. the slipped fill landed on the wrong side of the
+                # stop — a trade that can't be protected doesn't happen.
+                sized = None
+            if sized is not None:
                 pos = {
-                    "side": side, "entry_price": fill, "size": size,
-                    "notional": notional, "stop": pending["stop"],
+                    "side": side, "entry_price": fill, "size": sized.size,
+                    "notional": sized.notional, "stop": pending["stop"],
                     "target": pending["target"], "entry_time": idx[i],
-                    "entry_fee": notional * fee,
+                    "entry_fee": sized.notional * fee,
                 }
             pending = None
 

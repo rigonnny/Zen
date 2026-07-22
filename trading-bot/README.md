@@ -17,7 +17,7 @@ Futures Testnet (fake money) until a separate, explicit step much later.**
 | 1 | Data pipeline (download & store historical candles) | ✅ built & verified on real data |
 | 2 | Strategy / signal logic (EMA, RSI, ATR rules) | ✅ built |
 | 3 | Backtesting engine (fees, funding, slippage, out-of-sample) | ✅ built |
-| 4 | Risk-management module (the 7 safety rules) | ⏳ not started |
+| 4 | Risk-management module (the 7 safety rules) | ✅ built |
 | 5 | Paper trading on Binance Futures **Testnet** | ⏳ not started |
 | 6 | Small-capital live trading (only after 1–5 reviewed) | ⏳ not started |
 
@@ -37,8 +37,12 @@ See `SESSION_LOG.md` for a running changelog.
    `.env` (never in git).
 7. **Kill switch** — one command flattens everything and halts the bot.
 
-These arrive as tested code in Phase 4; they're listed here from day one so
-they shape every design decision before then.
+These live in `bot/risk.py` (its docstring maps every rule to its
+enforcement point) with settings under `risk:` in `config.yaml`. The 2%
+risk and 3× leverage ceilings are compiled into the code — config can pick
+values *below* them, never above. Rules #1 (testnet default), #6 (key
+scope) and the flatten-positions half of #7 complete in Phase 5, where the
+exchange connection is built.
 
 ## Setup
 
@@ -163,6 +167,7 @@ trading-bot/
 │   ├── indicators.py      # EMA / RSI / ATR math, hand-implemented & tested
 │   ├── strategy.py        # the entry/exit rules (read its top docstring!)
 │   ├── backtest.py        # the simulator (read its honesty rules!)
+│   ├── risk.py            # the 7 safety rules as code (sizing, breaker, kill switch)
 │   └── data/
 │       ├── binance_client.py  # talks to Binance's public API (retries, paging)
 │       ├── storage.py         # SQLite read/write layer

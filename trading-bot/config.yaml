@@ -59,6 +59,20 @@ strategy:
   min_reward_risk: 1.5  # signals below this ratio are refused outright
   allow_shorts: true    # futures can profit from falls too; set false for long-only
 
+risk:
+  # Phase 4: the safety rules (see bot/risk.py — the module's docstring
+  # maps each of the seven non-negotiable rules to its enforcement point).
+  # Hard ceilings (risk 2%, leverage 3x) are compiled into the code and
+  # CANNOT be raised here — this file can only choose values below them.
+  risk_per_trade_pct: 1.0        # % of equity risked per trade
+  max_leverage: 2.0              # notional cap; >2.0 logs a loud warning
+  daily_loss_limit_pct: 4.0      # circuit breaker: stop entering after
+                                 # losing this % of the day's starting equity
+  max_concurrent_positions: 2    # no stacking correlated bets
+  cooldown_hours_after_stop: 24  # per-symbol pause after a stop-loss hit
+  live_trading: false            # RULE #1. Leave false. Phase 5 requires a
+                                 # second, separate confirmation even if true.
+
 backtest:
   # Phase 3: simulation settings. See bot/backtest.py for the full list of
   # honesty rules (next-open fills, worst-case tie-breaks, etc.).
