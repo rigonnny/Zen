@@ -6,6 +6,31 @@ stands without re-reading everything.
 
 ---
 
+## 2026-07-22 — Session 9: five-market review, portfolio run live, kill switch verified
+
+**Five-market backtest reviewed (data clean, all symbols kept):** variant
+A+B positive in 7/10 combos full-period, OOS positive 9/10 but on 6-54
+trade samples; SOL 4h fired the OVERFITTING WARNING (IS +23% → OOS -8%);
+BTC 4h +87.6% is mostly 2023 (+58%). Architecture signature confirmed
+everywhere (avg win 2-5x avg loss). Verdict recorded: better than v1,
+still regime-dominated, NOT a demonstrated edge; costs material (BTC 4h:
+1,091 fees + 423 funding). Noted per-market sims != shared-equity
+portfolio with 2-position cap — the live paper run is that experiment.
+
+**Operating state:** config_variant_ab (5 markets, 4h) engine running as
+the account's sole manager. Demo playground retired. Kill switch drill
+executed for real against the live testnet: KILL file → cancelled algo
+stop → reduce-only close of the drill BTC position → re-armed via rm
+KILL. Every phase-5 mechanism now verified end-to-end on the exchange:
+entry, sizing, algo-API stop, unmanaged-position refusal, decision log,
+state restore, kill switch.
+
+**Next:** weeks of unattended paper trading; user checks decision log
+every day or two; review milestone = compare live decisions vs backtest
+expectations on the same candles. Phase 6 remains locked (no edge).
+
+---
+
 ## 2026-07-22 — Session 8d: drill #4 SUCCESS — full lifecycle live
 
 Drill #4 on the real testnet: MARKET BUY 0.1061 BTC filled, STOP placed
