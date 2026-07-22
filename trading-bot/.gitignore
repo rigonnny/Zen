@@ -6,7 +6,10 @@
 # --- Local data ---
 # Downloaded market data lives here. It can be re-downloaded at any time,
 # so there is no reason to store megabytes of candles in git history.
-data/
+# (The leading slash anchors this to trading-bot/data/ only — without it,
+# git would also ignore the SOURCE CODE folder bot/data/, which actually
+# happened once during development.)
+/data/
 
 # --- Python housekeeping files ---
 __pycache__/
