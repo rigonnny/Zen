@@ -18,7 +18,7 @@ Futures Testnet (fake money) until a separate, explicit step much later.**
 | 2 | Strategy / signal logic (EMA, RSI, ATR rules) | ✅ built |
 | 3 | Backtesting engine (fees, funding, slippage, out-of-sample) | ✅ built |
 | 4 | Risk-management module (the 7 safety rules) | ✅ built |
-| 5 | Paper trading on Binance Futures **Testnet** | ⏳ not started |
+| 5 | Paper trading on Binance Futures **Testnet** | ✅ built |
 | 6 | Small-capital live trading (only after 1–5 reviewed) | ⏳ not started |
 
 See `SESSION_LOG.md` for a running changelog.
@@ -163,6 +163,47 @@ tested against history ONCE and the verdict stands — repeated
 tweak-and-retest against the same data quietly turns the out-of-sample
 exam into memorized homework.
 
+## Phase 5: paper trading on the testnet
+
+One-time setup:
+
+1. Create **testnet** API keys at <https://testnet.binancefuture.com>
+   (a sandbox with pretend money, separate from any real account).
+2. `cp .env.example .env` and fill in `BINANCE_TESTNET_API_KEY` / `_SECRET`.
+
+Run:
+
+```bash
+python run_paper.py
+```
+
+The engine acts once per closed candle (first timeframe in `config.yaml`):
+fetches candles, computes signals with the exact code the backtester used,
+asks the RiskManager for permission, and places orders with a server-side
+stop attached **before anything else happens** — if the stop can't be
+placed, the position is closed on the spot. Every decision, including every
+"did nothing because ...", is appended to `logs/decisions-YYYYMMDD.jsonl`.
+
+`python run_paper.py --once` runs a single tick (cron-friendly).
+Ctrl+C stops the loop; open positions stay protected by their exchange-side
+stops. State (positions, cooldowns, daily loss tally) lives in
+`data/engine_state.json` and survives restarts.
+
+**The kill switch:** `python kill_switch.py` — no arguments, no questions:
+writes a `KILL` file (the engine refuses to trade while it exists), cancels
+all orders, closes all positions at market. Delete the `KILL` file to
+deliberately re-arm.
+
+**Going live (Phase 6) — deliberately hard:** the engine connects to the
+real exchange only when BOTH `risk.live_trading: true` is set in config
+AND the environment variable `CONFIRM_LIVE_TRADING` contains an exact,
+long confirmation phrase (see `bot/exchange.py`). Either alone stays on
+testnet; a mistyped phrase refuses to start entirely. Before ever doing
+this: only money you can fully afford to lose, keys with withdrawals
+disabled, and confirm Binance Futures API trading is permitted where you
+live. As of now, **no strategy tested in this project has shown an edge
+that justifies live trading.**
+
 ## Running the tests
 
 ```bash
@@ -182,12 +223,16 @@ trading-bot/
 ├── fetch_data.py          # Phase 1 CLI: download/update market data
 ├── show_signals.py        # Phase 2 CLI: print historical signals + reasons
 ├── run_backtest.py        # Phase 3 CLI: simulate + report performance
+├── run_paper.py           # Phase 5 CLI: run the bot on the testnet
+├── kill_switch.py         # rule #7: flatten everything + halt, one command
 ├── bot/
 │   ├── config.py          # loads & validates config.yaml
 │   ├── indicators.py      # EMA / RSI / ATR math, hand-implemented & tested
 │   ├── strategy.py        # the entry/exit rules (read its top docstring!)
 │   ├── backtest.py        # the simulator (read its honesty rules!)
 │   ├── risk.py            # the 7 safety rules as code (sizing, breaker, kill switch)
+│   ├── exchange.py        # signed REST client + the testnet→live gate
+│   ├── engine.py          # the live loop: reconcile, manage, enter, log
 │   └── data/
 │       ├── binance_client.py  # talks to Binance's public API (retries, paging)
 │       ├── storage.py         # SQLite read/write layer

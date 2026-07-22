@@ -6,6 +6,55 @@ stands without re-reading everything.
 
 ---
 
+## 2026-07-22 — Session 6: Phase 5 (testnet paper-trading engine)
+
+**Variant A+B verdict on real data (user's machine, partial output seen —
+ETH 1d section):** still no reliable edge. Full period −4.49%, PF 0.64,
+win rate 23.8% (trailing exits shifted the win/loss shape as designed:
+avg win 2× avg loss, but the win rate can't carry it). OOS +3.23% /
+PF 1.78 on only 8 trades — a green shoot, statistically meaningless.
+Verdict accepted per the pre-registration discipline. Phase 5 proceeds AS
+A SYSTEMS TEST with the variant config; no strategy has earned real money.
+
+**Built:**
+- `bot/exchange.py` — signed REST client for USDT-M futures (HMAC-SHA256,
+  ~200 lines, no exchange SDK dependency). RULE #1 GATE: live requires
+  risk.live_trading:true AND env CONFIRM_LIVE_TRADING to equal an exact
+  long phrase; either alone → testnet; a WRONG phrase → refuses to start.
+  Balance/positions/orders, STOP_MARKET closePosition server-side stops,
+  exchangeInfo-based qty/price rounding (always down), min-notional check,
+  flatten_everything() for the kill switch.
+- `bot/engine.py` — per-candle tick: halt checks (KILL file) → fetch
+  candles from the SAME venue orders go to → same generate_signals code as
+  backtests → reconcile vs exchange truth (stop-hit-while-away → estimated
+  pnl + cooldown; unmanaged/manual positions left alone, loudly) → manage
+  (trailing ratchet via cancel+replace of the server-side stop; failure to
+  replace → emergency close; trend-flip exit) → enter (risk gate, sizing
+  via bot.risk, stop attached immediately or the entry is undone — rule
+  #4) → JSONL decision log incl. every "did nothing because...".
+  State (positions + RiskManager via new to_dict/restore) persists in
+  data/engine_state.json across restarts.
+- `run_paper.py` — loop aligned to candle closes (+30s buffer) or --once;
+  loud TESTNET/LIVE banner. `kill_switch.py` — writes KILL file FIRST,
+  then cancels all orders and closes all positions; no arguments.
+- requirements: + python-dotenv. 21 new tests (110 total): testnet-gate
+  matrix, HMAC reference vector, round-down rules, engine behaviors
+  (enter+stop, abort-on-stop-failure, kill file, cooldown after remote
+  stop-hit, trail ratchet, unmanaged position untouched, state restart,
+  risk state round-trip).
+
+**Not run here:** sandbox has no Binance network access — the engine has
+never talked to the real testnet. First real testnet session must be
+watched: known first-run risks are exchangeInfo filter parsing and order
+param details (documented assumptions: one-way position mode, USDT
+balance, MIN_NOTIONAL filter shape).
+
+**Next:** user creates testnet keys, runs `python run_paper.py --once`
+with the variant config, we review the decision log together. Phase 6
+(live) remains locked: no strategy has demonstrated an edge.
+
+---
+
 ## 2026-07-22 — Session 5: strategy variant A+B (breakout + trailing)
 
 **User chose** variant "A+B together" from the three pre-registered options.

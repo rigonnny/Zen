@@ -330,3 +330,32 @@ class RiskManager:
             )
 
         return Decision(True, "all risk checks passed")
+
+    # ---------------- persistence (used by the live engine) ----------------
+    # The engine restarts (crashes, reboots, deploys) but risk state must
+    # not: a circuit breaker that forgets today's losses on restart, or a
+    # cooldown that resets, would be a rule with a trivial bypass.
+    def to_dict(self) -> dict:
+        return {
+            "killed": self._killed,
+            "kill_reason": self._kill_reason,
+            "current_day": self._current_day.isoformat() if self._current_day else None,
+            "day_start_equity": self._day_start_equity,
+            "daily_realized_pnl": self._daily_realized_pnl,
+            "open_symbols": sorted(self._open_symbols),
+            "cooldown_until": {s: t.isoformat() for s, t in self._cooldown_until.items()},
+        }
+
+    def restore(self, state: dict) -> None:
+        """Load state saved by to_dict(). Unknown/missing keys keep defaults."""
+        self._killed = bool(state.get("killed", False))
+        self._kill_reason = state.get("kill_reason", "")
+        day = state.get("current_day")
+        self._current_day = date.fromisoformat(day) if day else None
+        self._day_start_equity = float(state.get("day_start_equity", 0.0))
+        self._daily_realized_pnl = float(state.get("daily_realized_pnl", 0.0))
+        self._open_symbols = set(state.get("open_symbols", []))
+        self._cooldown_until = {
+            s: datetime.fromisoformat(t)
+            for s, t in (state.get("cooldown_until") or {}).items()
+        }

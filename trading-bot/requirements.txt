@@ -9,10 +9,12 @@ requests>=2.31        # talks HTTP to Binance's public market-data API
 pandas>=2.0           # tabular data handling (our candles live in DataFrames)
 PyYAML>=6.0           # reads config.yaml so settings aren't buried in code
 
+# --- Phase 5: paper/live trading ---
+python-dotenv>=1.0    # loads API keys from the .env file (never from code)
+
 # --- Testing (all phases) ---
 pytest>=8.0           # runs the unit tests in tests/
 
-# --- Coming in later phases (not needed yet) ---
-# pandas-ta           # Phase 2: technical indicators (EMA, RSI, ATR, ...)
-# python-dotenv       # Phase 5: loads API keys from the .env file
-# python-binance      # Phase 5: authenticated trading against the testnet
+# (No indicator or exchange libraries: indicators are hand-implemented in
+#  bot/indicators.py, and the exchange client is ~200 lines of signed REST
+#  in bot/exchange.py — both fully readable and unit-tested.)
