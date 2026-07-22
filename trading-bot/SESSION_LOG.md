@@ -6,6 +6,48 @@ stands without re-reading everything.
 
 ---
 
+## 2026-07-22 — Session 3: Phase 3 (backtesting engine)
+
+**User confirmations:** Phase 2 reviewed — user ran show_signals.py on real
+data and verified the ETH-daily short cluster against a TradingView chart
+(2026 downtrend: trend filter correct, March–May counter-rally would have
+stopped out several shorts, late-April/May shorts caught the June leg down).
+
+**Built:**
+- `bot/backtest.py` — event-driven simulator. Honesty rules: next-open
+  fills only; taker fee (0.05%) on every fill; adverse slippage (0.03%) on
+  market-style fills; real historical funding applied by side; stop wins
+  any stop/target tie (worst case); positions sized to risk 1% of equity
+  with a hard 2× leverage cap (BacktestParams REFUSES risk >2% or leverage
+  >3× — safety rules #2/#3 now live in code); one position per market;
+  open positions force-closed at end of data. Metrics: return, CAGR,
+  Sharpe, Sortino, max drawdown, win rate, profit factor, avg win/loss,
+  longest losing streak, fees, funding.
+- `run_backtest.py` — CLI report: full period + in-sample vs out-of-sample
+  (config `backtest.oos_start`, default 2025-07-01) + per-year breakdown +
+  explicit overfitting warning when IS profits vanish OOS. `--trades`
+  lists every simulated trade.
+- `backtest:` section in config.yaml.
+- 14 new tests (59 total, all passing): hand-computed P&L for target/stop/
+  tie-break/short mechanics, fee & slippage & funding arithmetic, leverage
+  cap, signal-ignored-while-open, end-of-data close, metrics math,
+  safety-rail refusals.
+
+**Environment note:** sandbox still has no Binance access; CLI smoke-tested
+end-to-end on seeded synthetic data (trades, IS/OOS split, per-year table
+all exercised). Real-data numbers must come from the user's machine.
+
+**Known simplifications (documented in backtest.py docstring):** stop/target
+not re-anchored to fill price; funding booked at trade close; no minimum
+order size.
+
+**Next up (Phase 4, after user reviews their real backtest numbers):** risk
+management module — extract sizing/leverage into standalone risk.py, add
+daily loss circuit breaker, max concurrent positions, post-stop cooldown,
+testnet-by-default flag, kill switch; all unit-tested.
+
+---
+
 ## 2026-07-22 — Session 2: Phase 2 (indicators + strategy rules)
 
 **User confirmations:** Phase 1 verified working on the user's Mac

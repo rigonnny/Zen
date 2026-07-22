@@ -16,7 +16,7 @@ Futures Testnet (fake money) until a separate, explicit step much later.**
 |---|---|---|
 | 1 | Data pipeline (download & store historical candles) | ✅ built & verified on real data |
 | 2 | Strategy / signal logic (EMA, RSI, ATR rules) | ✅ built |
-| 3 | Backtesting engine (fees, funding, slippage, walk-forward) | ⏳ not started |
+| 3 | Backtesting engine (fees, funding, slippage, out-of-sample) | ✅ built |
 | 4 | Risk-management module (the 7 safety rules) | ⏳ not started |
 | 5 | Paper trading on Binance Futures **Testnet** | ⏳ not started |
 | 6 | Small-capital live trading (only after 1–5 reviewed) | ⏳ not started |
@@ -114,6 +114,31 @@ times a month per market, and long quiet stretches are by design. Whether
 these signals *made money* after fees, funding and slippage is Phase 3's
 question, not Phase 2's; resist judging the strategy from this list alone.
 
+## Phase 3: running a backtest
+
+```bash
+python run_backtest.py
+```
+
+Add `--trades` to also list every simulated trade. Settings live in the
+`backtest:` section of `config.yaml`.
+
+The simulator is deliberately pessimistic (full details at the top of
+`bot/backtest.py`): orders fill at the *next* candle's open, never at the
+signal price; every fill pays taker fees and slippage; positions pay/receive
+the real historical funding rates; if one candle touches both the stop and
+the target we assume the stop hit first; and position sizing risks a fixed
+1% of equity per trade under a hard 2× leverage cap — the same safety rules
+the live bot will use.
+
+Each market is reported three ways: the **full period**, the **in-sample**
+development period, and the **out-of-sample** period after
+`backtest.oos_start` — data treated as a sealed exam. **The out-of-sample
+numbers are the ones to trust.** If in-sample profits vanish out-of-sample,
+the report prints an overfitting warning, and the honest response is to not
+trade the strategy — not to tweak parameters until the warning goes away
+(that just turns the exam into more homework).
+
 ## Running the tests
 
 ```bash
@@ -132,10 +157,12 @@ trading-bot/
 ├── config.yaml            # what to download / (later) how to trade
 ├── fetch_data.py          # Phase 1 CLI: download/update market data
 ├── show_signals.py        # Phase 2 CLI: print historical signals + reasons
+├── run_backtest.py        # Phase 3 CLI: simulate + report performance
 ├── bot/
 │   ├── config.py          # loads & validates config.yaml
 │   ├── indicators.py      # EMA / RSI / ATR math, hand-implemented & tested
 │   ├── strategy.py        # the entry/exit rules (read its top docstring!)
+│   ├── backtest.py        # the simulator (read its honesty rules!)
 │   └── data/
 │       ├── binance_client.py  # talks to Binance's public API (retries, paging)
 │       ├── storage.py         # SQLite read/write layer

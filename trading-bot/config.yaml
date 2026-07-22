@@ -58,3 +58,19 @@ strategy:
   atr_target_mult: 3.0  # take-profit distance = 3.0 × ATR (→ 1.5:1 reward:risk)
   min_reward_risk: 1.5  # signals below this ratio are refused outright
   allow_shorts: true    # futures can profit from falls too; set false for long-only
+
+backtest:
+  # Phase 3: simulation settings. See bot/backtest.py for the full list of
+  # honesty rules (next-open fills, worst-case tie-breaks, etc.).
+  initial_equity: 10000     # starting pretend-money (USDT)
+  fee_pct: 0.05             # Binance USDT-M taker fee per fill
+  slippage_pct: 0.03        # adverse slippage per market-style fill
+  risk_per_trade_pct: 1.0   # safety rule #3: % of equity risked per trade (max 2)
+  max_leverage: 2.0         # safety rule #2: hard notional cap (max 3)
+
+  # The overfitting tripwire. Data BEFORE this date is "in-sample" (the
+  # period we look at while developing); data AFTER it is "out-of-sample" —
+  # a sealed exam the strategy never saw during development. If results are
+  # good in-sample but collapse out-of-sample, the strategy memorized the
+  # past instead of learning something real, and we must NOT trade it.
+  oos_start: "2025-07-01"
