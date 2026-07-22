@@ -27,6 +27,7 @@ import logging
 import os
 import time
 
+import yaml
 from dotenv import load_dotenv
 
 from bot.config import load_config
@@ -37,6 +38,26 @@ from bot.risk import RiskConfig
 from bot.strategy import StrategyParams
 
 log = logging.getLogger(__name__)
+
+
+def load_engine_settings(config_path: str, trading_timeframe: str) -> EngineSettings:
+    """Read the optional `engine:` config section (state file, log dir...).
+
+    Lets different configs keep separate state — e.g. the demo playground
+    must never share a state file or decision log with the real run,
+    or their position records and cooldowns would trample each other.
+    """
+    from dataclasses import fields as dc_fields
+    with open(config_path, "r", encoding="utf-8") as f:
+        raw = yaml.safe_load(f) or {}
+    section = dict(raw.get("engine") or {})
+    valid = {f.name for f in dc_fields(EngineSettings)}
+    unknown = set(section) - valid
+    if unknown:
+        raise ValueError(f"Unknown engine option(s): {sorted(unknown)}. "
+                         f"Valid: {sorted(valid)}")
+    section.setdefault("trading_timeframe", trading_timeframe)
+    return EngineSettings(**section)
 
 
 def build_engine(config_path: str) -> tuple:
@@ -56,7 +77,7 @@ def build_engine(config_path: str) -> tuple:
 
     exchange = FuturesExchange(key, secret, live_trading_config=risk_cfg.live_trading)
 
-    settings = EngineSettings(trading_timeframe=cfg.timeframes[0])
+    settings = load_engine_settings(config_path, cfg.timeframes[0])
     engine = TradingEngine(exchange, strategy, risk_cfg, cfg.symbols, settings)
     return engine, settings
 

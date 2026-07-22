@@ -6,6 +6,28 @@ stands without re-reading everything.
 
 ---
 
+## 2026-07-22 — Session 7: demo playground (Option 3)
+
+User wanted more trades/day; talked through why frequency multiplies costs
+not edge, offered three options (more symbols / pre-registered 1h backtest
+/ testnet-only plumbing demo). User chose the demo, deferring the others.
+
+**Built:**
+- `config_demo_playground.yaml` — 1h candles, fast params (EMA 20/60,
+  10-candle breakout, 2×ATR trail), 2h cooldown, loudly labeled NOT A
+  STRATEGY (expected to lose fake money to fees — that's part of the
+  demo). live_trading pinned false. Separate DB path.
+- `engine:` config section support in run_paper (state_file,
+  decision_log_dir, candle_history) so demo and variant runs keep fully
+  separate state and logs — verified by test.
+- 4 new tests (114 total).
+
+**Next:** user runs the demo loop, watches entries/stops/ratchets/
+cooldowns in logs_demo/. Later: decide Option 1 (more symbols) and/or
+Option 2 (pre-registered 1h backtest of A+B).
+
+---
+
 ## 2026-07-22 — Session 6b: first testnet contact VERIFIED
 
 User created demo/testnet keys (demo.binance.com, "System generated" HMAC

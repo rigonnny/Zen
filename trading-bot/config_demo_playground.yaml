@@ -1,0 +1,62 @@
+# ============================================================================
+# DEMO PLAYGROUND — for WATCHING THE MACHINERY, not for trading.
+#
+#     python run_paper.py --config config_demo_playground.yaml
+#
+# What this is: the same engine, strategy code and risk rules as the real
+# configs, but tuned for ACTIVITY — 1-hour candles (a tick every hour, 24
+# a day), fast indicator periods, a short breakout channel, and a short
+# cooldown — so you get to see entries, server-side stops, trailing
+# ratchets, stop-outs, cooldowns and (maybe) the daily circuit breaker in
+# hours-to-days instead of weeks. It keeps its own state file and its own
+# decision log, so it cannot contaminate the real variant run.
+#
+# What this is NOT — read this twice:
+#   * NOT a strategy. These parameters were chosen to produce frequent
+#     trades for demonstration, the exact opposite of how trading
+#     parameters should ever be chosen. Expect it to LOSE its fake money,
+#     mostly to fees — at this frequency, costs eat everything. Watching
+#     that happen (safely) is part of the lesson.
+#   * NOT for backtesting-and-believing. If a backtest of this config
+#     ever looks good, that's noise, not discovery.
+#   * NOT ever to be pointed at live trading. live_trading stays false
+#     here permanently.
+# ============================================================================
+
+data:
+  symbols:
+    - BTCUSDT
+    - ETHUSDT
+  timeframes:
+    - 1h                      # fastest the bot supports — one tick per hour
+  start_date: "2022-07-01"
+  db_path: "data/market_data_demo.db"   # separate DB if you ever fetch 1h data
+  fetch_funding_rates: true
+
+strategy:
+  ema_fast: 20                # fast on purpose: more trend flips to watch
+  ema_slow: 60
+  atr_period: 14
+  atr_stop_mult: 2.0          # rule #4 unchanged: every entry gets its stop
+  allow_shorts: true
+  entry_mode: breakout
+  breakout_lookback: 10       # 10-hour channel → breaks often
+  exit_mode: trailing
+  trail_atr_mult: 2.0         # tight trail → you'll see ratchets quickly
+
+risk:
+  # The rules are NOT relaxed for the demo — watching them fire is the
+  # point. Only the cooldown is shortened to match the faster clock.
+  risk_per_trade_pct: 1.0
+  max_leverage: 2.0
+  daily_loss_limit_pct: 4.0   # you may actually see the breaker trip!
+  max_concurrent_positions: 2
+  cooldown_hours_after_stop: 2
+  live_trading: false         # permanently, for this file
+
+engine:
+  # Separate everything — the playground must not touch the real run's
+  # state or logs.
+  state_file: "data/engine_state_demo.json"
+  decision_log_dir: "logs_demo"
+  candle_history: 200
