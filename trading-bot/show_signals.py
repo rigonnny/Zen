@@ -60,7 +60,7 @@ def main() -> None:
                 if shown.empty:
                     print("  (none)")
                 for ts, row in shown.iterrows():
-                    print(f"  {ts:%Y-%m-%d %H:%M} UTC  {explain_row(row)}")
+                    print(f"  {ts:%Y-%m-%d %H:%M} UTC  {explain_row(row, params)}")
 
     print(
         "\nReminder: these are historical signals, shown for understanding — "

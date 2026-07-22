@@ -87,8 +87,10 @@ def print_metrics(title: str, m: dict) -> None:
             print(f"    {label:<28}{fmt.format(m[key])}")
 
 
-def backtest_slice(signals: pd.DataFrame, funding, params, timeframe: str) -> dict:
-    result = run_backtest(signals, funding=funding, params=params)
+def backtest_slice(signals: pd.DataFrame, funding, params, timeframe: str,
+                   trail_atr_mult=None):
+    result = run_backtest(signals, funding=funding, params=params,
+                          trail_atr_mult=trail_atr_mult)
     return compute_metrics(result, PERIODS_PER_YEAR[timeframe]), result
 
 
@@ -102,6 +104,9 @@ def main() -> None:
     strat = StrategyParams.from_yaml(args.config)
     bt_params, oos_start = load_backtest_settings(args.config)
 
+    trail = strat.trail_atr_mult if strat.exit_mode == "trailing" else None
+
+    print(f"Strategy: entry={strat.entry_mode}, exit={strat.exit_mode}")
     print(f"Backtest settings: start equity {bt_params.initial_equity:,.0f} USDT, "
           f"fee {bt_params.fee_pct}%, slippage {bt_params.slippage_pct}%, "
           f"risk/trade {bt_params.risk_per_trade_pct}%, "
@@ -125,15 +130,15 @@ def main() -> None:
                 print(f"\n{'=' * 68}\n== {symbol} {timeframe}  "
                       f"({signals.index[0]:%Y-%m-%d} → {signals.index[-1]:%Y-%m-%d})")
 
-                m, full_result = backtest_slice(signals, funding, bt_params, timeframe)
+                m, full_result = backtest_slice(signals, funding, bt_params, timeframe, trail)
                 print_metrics("FULL PERIOD", m)
 
                 if oos_start:
                     is_part = signals.loc[: pd.Timestamp(oos_start, tz="UTC")]
                     oos_part = signals.loc[pd.Timestamp(oos_start, tz="UTC"):]
                     if len(is_part) and len(oos_part):
-                        m_is, _ = backtest_slice(is_part, funding, bt_params, timeframe)
-                        m_oos, _ = backtest_slice(oos_part, funding, bt_params, timeframe)
+                        m_is, _ = backtest_slice(is_part, funding, bt_params, timeframe, trail)
+                        m_oos, _ = backtest_slice(oos_part, funding, bt_params, timeframe, trail)
                         print_metrics(f"IN-SAMPLE (dev period, → {oos_start})", m_is)
                         print_metrics(f"OUT-OF-SAMPLE (sealed exam, {oos_start} →)", m_oos)
 
@@ -148,7 +153,7 @@ def main() -> None:
                 # Per-year honesty table.
                 print("\n  --- per-year breakdown (each year starts fresh) ---")
                 for year, chunk in signals.groupby(signals.index.year):
-                    my, _ = backtest_slice(chunk, funding, bt_params, timeframe)
+                    my, _ = backtest_slice(chunk, funding, bt_params, timeframe, trail)
                     ret = my.get("total_return_pct")
                     dd = my.get("max_drawdown_pct")
                     n = my.get("trade_count", 0)

@@ -143,6 +143,26 @@ the report prints an overfitting warning, and the honest response is to not
 trade the strategy — not to tweak parameters until the warning goes away
 (that just turns the exam into more homework).
 
+### Strategy variant A+B (pre-registered)
+
+The honest v1 backtest verdict on real data: **v1 loses** (profit factor
+0.87 BTC-4h / 0.63 ETH-1d — win rate below what its 1.5:1 reward-to-risk
+needs). One variant was then pre-registered on principle, not fitted:
+**breakout entries** (enter on a close beyond the last 20 candles' extreme —
+momentum confirmed, no knife-catching) plus **trailing exits** (no fixed
+take-profit; a stop trails 3×ATR behind the best close since entry and only
+ever tightens — rare big winners stay winners). The initial 2×ATR stop at
+entry is unchanged in every mode.
+
+```bash
+python run_backtest.py --config config_variant_ab.yaml
+```
+
+`config.yaml` stays v1 for comparison. Discipline rule: the variant gets
+tested against history ONCE and the verdict stands — repeated
+tweak-and-retest against the same data quietly turns the out-of-sample
+exam into memorized homework.
+
 ## Running the tests
 
 ```bash

@@ -6,6 +6,35 @@ stands without re-reading everything.
 
 ---
 
+## 2026-07-22 — Session 5: strategy variant A+B (breakout + trailing)
+
+**User chose** variant "A+B together" from the three pre-registered options.
+
+**Built (config-selectable; v1 code path byte-identical, verified):**
+- `StrategyParams` gains `entry_mode` (rsi_cross|breakout), `exit_mode`
+  (fixed_target|trailing), `breakout_lookback` (20), `trail_atr_mult` (3.0).
+  Min reward-to-risk check applies only in fixed_target mode (trailing has
+  uncapped reward — no ratio exists at signal time). Initial 2×ATR stop
+  (rule #4) unchanged in every mode.
+- Breakout entries: close beyond the prior `breakout_lookback` candles'
+  extreme close (shift(1) — today can't be in its own channel), trend
+  filter still outranks the trigger.
+- Trailing exits in the backtester (`run_backtest(trail_atr_mult=...)`):
+  chandelier stop ratchets from each candle's CLOSE (tightened stop only
+  hittable from the next candle — no same-candle hindsight), never
+  loosens; NaN target never "hits". explain_row/show_signals updated.
+- `config_variant_ab.yaml` — one-command, one-shot variant test;
+  config.yaml stays v1.
+- 12 new tests (89 total, all passing): mode validation, breakout
+  fires/holds, trailing ratchet up/short-mirror/never-loosens, winning
+  stop-outs, atr-column requirement, v1-unchanged guard.
+
+**Next:** user runs `python run_backtest.py --config config_variant_ab.yaml`
+ONCE on real data; verdict accepted either way. Then Phase 5 (paper
+trading engine on testnet) with whichever strategy the verdict favors.
+
+---
+
 ## 2026-07-22 — Session 4: Phase 4 (risk-management module)
 
 **Backtest verdict on real data (user's machine):** the v1 strategy LOSES

@@ -90,6 +90,29 @@ class StrategyParams:
     min_reward_risk: float = 1.5  # required target/stop ratio
     allow_shorts: bool = True     # futures can short as easily as long
 
+    # --- Variant A+B (pre-registered after the v1 backtest verdict) ---
+    # entry_mode:
+    #   "rsi_cross" — v1: enter on an RSI cross of the midline (a pullback
+    #                 ending). Diagnosis from the v1 backtest: caught too
+    #                 many falling knives; win rate below breakeven.
+    #   "breakout"  — variant B: enter when price closes beyond its most
+    #                 extreme close of the last `breakout_lookback` candles
+    #                 (a Donchian-channel breakout). Only fires when the
+    #                 move is already confirmed by a new high/low.
+    # exit_mode:
+    #   "fixed_target" — v1: take profit at atr_target_mult × ATR.
+    #   "trailing"     — variant A: NO fixed target; instead a stop that
+    #                    follows price at trail_atr_mult × ATR behind the
+    #                    best close since entry, ratcheting only in our
+    #                    favor (a "chandelier" stop). Rare big winners are
+    #                    allowed to stay winners.
+    # Rule #4 is unchanged in every mode: the initial 2×ATR stop-loss is
+    # attached at entry no matter what.
+    entry_mode: str = "rsi_cross"
+    exit_mode: str = "fixed_target"
+    breakout_lookback: int = 20   # candles in the Donchian channel
+    trail_atr_mult: float = 3.0   # trailing distance, in ATRs
+
     def __post_init__(self) -> None:
         """Sanity-check the numbers the moment params are created."""
         if self.ema_fast >= self.ema_slow:
@@ -103,16 +126,29 @@ class StrategyParams:
                 raise ValueError(f"{name} must be >= 2.")
         if self.atr_stop_mult <= 0 or self.atr_target_mult <= 0:
             raise ValueError("ATR multiples must be positive.")
-        # The reward-to-risk floor, enforced at load time: a signal whose
-        # target pays less than min_reward_risk × its stop distance is not
-        # allowed to exist in this system.
-        rr = self.atr_target_mult / self.atr_stop_mult
-        if rr < self.min_reward_risk:
+        if self.entry_mode not in ("rsi_cross", "breakout"):
             raise ValueError(
-                f"Reward-to-risk is {rr:.2f}:1 (target {self.atr_target_mult} ATR "
-                f"/ stop {self.atr_stop_mult} ATR) but the configured minimum is "
-                f"{self.min_reward_risk}:1. Widen the target or tighten the stop."
+                f"entry_mode {self.entry_mode!r} unknown — use 'rsi_cross' or 'breakout'."
             )
+        if self.exit_mode not in ("fixed_target", "trailing"):
+            raise ValueError(
+                f"exit_mode {self.exit_mode!r} unknown — use 'fixed_target' or 'trailing'."
+            )
+        if self.breakout_lookback < 2:
+            raise ValueError("breakout_lookback must be >= 2.")
+        if self.trail_atr_mult <= 0:
+            raise ValueError("trail_atr_mult must be positive.")
+        # The reward-to-risk floor only applies when there IS a fixed
+        # target. A trailing exit has unbounded upside — its reward isn't
+        # capped, so there is no ratio to check at signal time.
+        if self.exit_mode == "fixed_target":
+            rr = self.atr_target_mult / self.atr_stop_mult
+            if rr < self.min_reward_risk:
+                raise ValueError(
+                    f"Reward-to-risk is {rr:.2f}:1 (target {self.atr_target_mult} ATR "
+                    f"/ stop {self.atr_stop_mult} ATR) but the configured minimum is "
+                    f"{self.min_reward_risk}:1. Widen the target or tighten the stop."
+                )
 
     @classmethod
     def from_yaml(cls, path: str | Path = "config.yaml") -> "StrategyParams":
@@ -173,30 +209,49 @@ def generate_signals(df: pd.DataFrame, params: StrategyParams | None = None) -> 
 
     out["uptrend"] = (fast > slow) & ready
 
-    # "Crosses above 50" = was at-or-below 50, now above it. The shift(1)
-    # is what makes it a cross rather than a state.
-    rsi_crossed_up = (prev_r <= params.rsi_midline) & (r > params.rsi_midline)
-    rsi_crossed_down = (prev_r >= params.rsi_midline) & (r < params.rsi_midline)
+    if params.entry_mode == "breakout":
+        # Donchian breakout: the highest/lowest close of the PREVIOUS
+        # `breakout_lookback` candles (shift(1) excludes today — comparing
+        # today's close against a channel that already contains it could
+        # never fire). A close beyond that channel is, by definition, the
+        # strongest close in `breakout_lookback` candles: momentum
+        # confirmed, no knife-catching possible.
+        prior_high = close.shift(1).rolling(params.breakout_lookback).max()
+        prior_low = close.shift(1).rolling(params.breakout_lookback).min()
+        trigger_long = close > prior_high
+        trigger_short = close < prior_low
+        ready = ready & prior_high.notna() & prior_low.notna()
+    else:
+        # v1: "crosses above 50" = was at-or-below 50, now above it. The
+        # shift(1) is what makes it a cross rather than a state.
+        trigger_long = (prev_r <= params.rsi_midline) & (r > params.rsi_midline)
+        trigger_short = (prev_r >= params.rsi_midline) & (r < params.rsi_midline)
 
-    long_entry = ready & (fast > slow) & rsi_crossed_up
-    short_entry = ready & (fast < slow) & rsi_crossed_down
+    long_entry = ready & (fast > slow) & trigger_long
+    short_entry = ready & (fast < slow) & trigger_short
     if not params.allow_shorts:
         short_entry &= False
 
     out["signal"] = np.select([long_entry, short_entry], [LONG, SHORT], default=NONE)
 
     # --- Mandatory stop & target, priced off the signal candle's close ---
-    # (Reference prices; Phase 3 fills at next open and re-anchors these.)
+    # (Reference prices; Phase 3 fills at next open.) The stop exists in
+    # EVERY mode (rule #4). The fixed target exists only in fixed_target
+    # mode — in trailing mode it stays NaN and the backtester/live engine
+    # manages a ratcheting stop instead.
     stop_dist = params.atr_stop_mult * out["atr"]
-    target_dist = params.atr_target_mult * out["atr"]
     out["stop_price"] = np.where(
         long_entry, close - stop_dist,
         np.where(short_entry, close + stop_dist, np.nan),
     )
-    out["target_price"] = np.where(
-        long_entry, close + target_dist,
-        np.where(short_entry, close - target_dist, np.nan),
-    )
+    if params.exit_mode == "fixed_target":
+        target_dist = params.atr_target_mult * out["atr"]
+        out["target_price"] = np.where(
+            long_entry, close + target_dist,
+            np.where(short_entry, close - target_dist, np.nan),
+        )
+    else:
+        out["target_price"] = np.nan
 
     # --- Exit rules for positions already open: the trend flipped ---
     trend_flipped_down = ready & (prev_fast >= prev_slow) & (fast < slow)
@@ -207,28 +262,42 @@ def generate_signals(df: pd.DataFrame, params: StrategyParams | None = None) -> 
     return out
 
 
-def explain_row(row: pd.Series) -> str:
+def explain_row(row: pd.Series, params: StrategyParams | None = None) -> str:
     """One row of generate_signals output → a plain-English sentence.
 
     Exists so `show_signals.py` (and later, live-trading logs) can tell you
     WHY the bot wants to trade, not just that it does. A bot you can't
     interrogate is a bot you can't trust.
     """
+    breakout = params is not None and params.entry_mode == "breakout"
+    lookback = params.breakout_lookback if params else 0
+    # NaN target means the exit is a trailing stop, not a fixed price.
+    has_target = row["target_price"] == row["target_price"]
+    target_txt = (
+        f"target {row['target_price']:.2f}" if has_target
+        else "exit via trailing stop (no fixed target)"
+    )
     if row["signal"] == LONG:
+        why = (
+            f"closed above its highest close of the last {lookback} candles"
+            if breakout else
+            f"RSI crossed up through the midline (now {row['rsi']:.1f})"
+        )
         return (
             f"LONG: uptrend (EMA fast {row['ema_fast']:.2f} > "
-            f"EMA slow {row['ema_slow']:.2f}) "
-            f"and RSI crossed up through the midline (now {row['rsi']:.1f}). "
-            f"Entry ref {row['close']:.2f}, stop {row['stop_price']:.2f}, "
-            f"target {row['target_price']:.2f}."
+            f"EMA slow {row['ema_slow']:.2f}) and {why}. "
+            f"Entry ref {row['close']:.2f}, stop {row['stop_price']:.2f}, {target_txt}."
         )
     if row["signal"] == SHORT:
+        why = (
+            f"closed below its lowest close of the last {lookback} candles"
+            if breakout else
+            f"RSI crossed down through the midline (now {row['rsi']:.1f})"
+        )
         return (
             f"SHORT: downtrend (EMA fast {row['ema_fast']:.2f} < "
-            f"EMA slow {row['ema_slow']:.2f}) and RSI crossed down through the "
-            f"midline (now {row['rsi']:.1f}). "
-            f"Entry ref {row['close']:.2f}, stop {row['stop_price']:.2f}, "
-            f"target {row['target_price']:.2f}."
+            f"EMA slow {row['ema_slow']:.2f}) and {why}. "
+            f"Entry ref {row['close']:.2f}, stop {row['stop_price']:.2f}, {target_txt}."
         )
     if row.get("exit_long"):
         return "EXIT LONGS: trend flipped down (EMA fast crossed below EMA slow)."

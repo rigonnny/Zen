@@ -1,0 +1,62 @@
+# ============================================================================
+# PRE-REGISTERED STRATEGY VARIANT "A+B" — breakout entries + trailing exits.
+#
+# Chosen after the honest v1 backtest verdict (v1 loses: profit factor
+# 0.87 / 0.63). This file exists so the variant can be tested with ONE
+# command, ONE time, without touching config.yaml (which stays v1 for
+# comparison):
+#
+#     python run_backtest.py --config config_variant_ab.yaml
+#
+# The discipline rule: we look at this variant's results ONCE and accept
+# the verdict. Repeatedly tweaking-and-retesting against the same history
+# would slowly turn the out-of-sample "exam" into memorized homework.
+#
+# What changed vs v1 (everything else identical):
+#   entry_mode: breakout — enter on a close beyond the most extreme close
+#     of the last 20 candles (Donchian breakout): momentum already
+#     confirmed, no catching falling knives (v1's diagnosed failure).
+#   exit_mode: trailing — no fixed take-profit; a stop trails 3×ATR behind
+#     the best close since entry, ratcheting only in our favor. Trend
+#     following lives on rare big winners; v1's fixed 1.5:1 target
+#     amputated exactly those.
+# ============================================================================
+
+data:
+  symbols:
+    - BTCUSDT
+    - ETHUSDT
+  timeframes:
+    - 4h
+    - 1d
+  start_date: "2022-07-01"
+  db_path: "data/market_data.db"
+  fetch_funding_rates: true
+
+strategy:
+  ema_fast: 50
+  ema_slow: 200
+  atr_period: 14
+  atr_stop_mult: 2.0        # rule #4: initial protective stop, unchanged
+  allow_shorts: true
+  # --- the variant ---
+  entry_mode: breakout
+  breakout_lookback: 20
+  exit_mode: trailing
+  trail_atr_mult: 3.0
+
+risk:
+  risk_per_trade_pct: 1.0
+  max_leverage: 2.0
+  daily_loss_limit_pct: 4.0
+  max_concurrent_positions: 2
+  cooldown_hours_after_stop: 24
+  live_trading: false
+
+backtest:
+  initial_equity: 10000
+  fee_pct: 0.05
+  slippage_pct: 0.03
+  risk_per_trade_pct: 1.0
+  max_leverage: 2.0
+  oos_start: "2025-07-01"

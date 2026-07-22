@@ -115,14 +115,29 @@ def run_backtest(
     signals: pd.DataFrame,
     funding: Optional[pd.DataFrame] = None,
     params: Optional[BacktestParams] = None,
+    trail_atr_mult: Optional[float] = None,
 ) -> BacktestResult:
     """Simulate trading a generate_signals() DataFrame. Pure & deterministic.
 
     `signals` must contain: open/high/low/close, signal, stop_price,
     target_price, exit_long, exit_short (i.e. generate_signals output).
     `funding` is the load_funding_rates() frame (may be None/empty).
+
+    `trail_atr_mult`: when set (strategy exit_mode "trailing"), the stop
+    RATCHETS behind price: after each candle closes, a long's stop rises to
+    (best close since entry) − trail_atr_mult × current ATR whenever that
+    is higher than the current stop — and it NEVER moves back down. Shorts
+    mirror. The update uses the candle's CLOSE, so the tightened stop can
+    only be hit from the NEXT candle onward — no same-candle hindsight.
+    Requires an 'atr' column (generate_signals provides it).
     """
     params = params or BacktestParams()
+    if trail_atr_mult is not None:
+        if trail_atr_mult <= 0:
+            raise ValueError("trail_atr_mult must be positive.")
+        if "atr" not in signals.columns:
+            raise ValueError("trailing exit needs an 'atr' column in signals.")
+    atr_arr = signals["atr"].to_numpy() if "atr" in signals.columns else None
     fee = params.fee_pct / 100.0
     slip = params.slippage_pct / 100.0
 
@@ -220,7 +235,11 @@ def run_backtest(
         if pos is not None:
             s, t, side = pos["stop"], pos["target"], pos["side"]
             hit_stop = low[i] <= s if side == LONG else high[i] >= s
-            hit_target = high[i] >= t if side == LONG else low[i] <= t
+            # A NaN target (trailing mode) never counts as hit.
+            if np.isnan(t):
+                hit_target = False
+            else:
+                hit_target = high[i] >= t if side == LONG else low[i] <= t
 
             if hit_stop:
                 # Worst-case rule: stop wins any tie with the target.
@@ -230,6 +249,23 @@ def run_backtest(
             elif hit_target:
                 # Resting limit order: fills at its own price, no slippage.
                 close_position(i, t, "target")
+
+        # ---------- 2b. Ratchet the trailing stop on this candle's close ----------
+        if pos is not None and trail_atr_mult is not None and not np.isnan(atr_arr[i]):
+            side = pos["side"]
+            # Track the best close seen since entry (highest for longs,
+            # lowest for shorts)...
+            best = pos.get("best_close", pos["entry_price"])
+            best = max(best, close[i]) if side == LONG else min(best, close[i])
+            pos["best_close"] = best
+            # ...and drag the stop behind it. max()/min() against the old
+            # stop is the ratchet: the stop tightens or stays — never loosens.
+            if side == LONG:
+                trail = best - trail_atr_mult * atr_arr[i]
+                pos["stop"] = max(pos["stop"], trail)
+            else:
+                trail = best + trail_atr_mult * atr_arr[i]
+                pos["stop"] = min(pos["stop"], trail)
 
         # ---------- 3. React to this candle's close (signals/flips) ----------
         if pos is not None:
