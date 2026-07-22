@@ -6,6 +6,34 @@ stands without re-reading everything.
 
 ---
 
+## 2026-07-22 — Session 10b: research verdicts — all three candidates REJECTED
+
+Pre-registered bar: "clearly good, not marginally good" (best-of-three
+discount). Results on the user's real data:
+
+- A (RSI-2 mean reversion): DECISIVE FAIL. Every 4h market heavily
+  negative (BTC -29%, ETH -36%, SOL -21%, BNB -24%, XRP -14%; PF
+  0.65-0.87) on 520-600 trades each — a fee grinder; empirically confirms
+  frequency=cost with the user's own data. 1d mostly flat/negative
+  (BTC 1d +7.6% PF 1.76 the lone decent line — insufficient).
+- B (trend-strength filter): FAIL — prediction wrong. The filter cut
+  WINNERS more than noise: BTC 4h +14.2% vs +87.6% unfiltered (missed
+  early trend entries), PF 1.16 vs 1.63; two overfitting warnings
+  (BTC 4h, SOL 4h). Filtered beat unfiltered nowhere that matters.
+- C (daily long-only): STATISTICALLY VACUOUS. 11-22 trades per market
+  over 4y; OOS samples of 2-4 trades; SOL PF 12.5 in-sample on 9 trades
+  = tiny-sample mirage; BTC 1d fired the overfitting warning. Marginal
+  by construction → rejected per pre-registration.
+
+Conclusion: incumbent A+B (config_variant_ab) remains the best tested
+system and stays as the paper-trading strategy. Multi-strategy portfolio
+plan shelved (the uncorrelated candidate failed hard). Negative results
+recorded honestly; no parameter torturing performed. Future research
+rounds must use genuinely different edge sources (funding carry,
+cross-sectional momentum) and be spaced out to protect the holdout.
+
+---
+
 ## 2026-07-22 — Session 10: research program built; profit-expectation reality check
 
 User asked for a strategy making "$15-20/day on $500" (= ~3-4%/DAY,
