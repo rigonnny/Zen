@@ -97,6 +97,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run the bot on the testnet.")
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--once", action="store_true", help="one tick, then exit")
+    parser.add_argument("--drill", metavar="SYMBOL",
+                        help="TESTNET ONLY: force one demo entry in SYMBOL "
+                             "through the real machinery (risk gate, sizing, "
+                             "stop), then keep running so you can watch it "
+                             "being managed. Not a strategy signal.")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO,
@@ -111,6 +116,9 @@ def main() -> None:
     print(f"  strategy: entry={engine.strategy.entry_mode}, "
           f"exit={engine.strategy.exit_mode}")
     print("=" * 60)
+
+    if args.drill:
+        engine.drill_entry(args.drill.upper())
 
     engine.run_once()   # act immediately on the most recent closed candle
 

@@ -26,6 +26,17 @@ data:
   symbols:
     - BTCUSDT
     - ETHUSDT
+    # --- Option 1: breadth, not speed (added after the A+B verdict). ---
+    # More markets = more ~monthly trades across the portfolio with the
+    # per-trade math unchanged. Discipline note: the backtest over these
+    # is a DATA-QUALITY sanity check, not an audition — we do not keep
+    # only the symbols whose history happened to look profitable (that
+    # would be selection bias, overfitting's sneaky cousin). Altcoins are
+    # more correlated than BTC/ETH; the max-concurrent-positions cap is
+    # the guard that keeps that from stacking risk.
+    - SOLUSDT
+    - BNBUSDT
+    - XRPUSDT
   timeframes:
     - 4h
     - 1d

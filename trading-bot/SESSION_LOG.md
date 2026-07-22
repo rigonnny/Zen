@@ -6,6 +6,28 @@ stands without re-reading everything.
 
 ---
 
+## 2026-07-22 — Session 8: fire drill + Option 1 (more markets)
+
+User wanted a guaranteed trade within the hour to watch the machinery,
+then to move to Option 1. A hair-trigger strategy can't guarantee timing,
+so built the honest version:
+
+**Fire drill:** `python run_paper.py --config config_demo_playground.yaml
+--drill BTCUSDT` — forces ONE long through the REAL code path (risk gate
+can veto, 1% sizing, mandatory stop attached or the entry is undone),
+loudly logged as `drill`/not-a-signal, then the normal loop manages it
+(trail ratchets, stop-out, cooldown all observable). HARD testnet-only
+guard: raises if exchange.is_testnet is false. 6 new tests (120 total).
+
+**Option 1:** added SOLUSDT, BNBUSDT, XRPUSDT to config_variant_ab.yaml
+with a written discipline note: the backtest over new symbols is a
+data-quality sanity check, NOT an audition — no cherry-picking profitable
+symbols (selection bias). User to run:
+  python fetch_data.py --config config_variant_ab.yaml   (fetch history)
+  python run_backtest.py --config config_variant_ab.yaml (sanity check)
+
+---
+
 ## 2026-07-22 — Session 7: demo playground (Option 3)
 
 User wanted more trades/day; talked through why frequency multiplies costs

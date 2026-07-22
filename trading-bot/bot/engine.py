@@ -211,6 +211,65 @@ class TradingEngine:
         self._enter(symbol, last, equity, now)
 
     # ------------------------------------------------------------------ #
+    # Fire drill: force ONE demo entry through the real machinery
+    # ------------------------------------------------------------------ #
+    def drill_entry(self, symbol: str, now: datetime | None = None) -> None:
+        """TESTNET-ONLY: open one long RIGHT NOW, regardless of signals.
+
+        Exists so a human can watch the machinery work — entry, sizing,
+        stop attachment, then trailing management on later ticks — without
+        waiting days for a real breakout. It is NOT a trade idea: the log
+        marks it as a drill. Everything else is the genuine code path:
+        the risk gate can still veto it, sizing still risks the configured
+        %, and the stop still goes on before the position may live.
+        """
+        now = now or datetime.now(timezone.utc)
+        if not getattr(self.exchange, "is_testnet", False):
+            # The one absolute rule of drills: never with real money.
+            raise RuntimeError("Fire drill refused: exchange is not the testnet.")
+        if KILL_FILE.exists() or self.risk.killed:
+            self.decisions.log("drill_blocked", symbol, reason="kill switch / KILL file")
+            return
+
+        equity = self.exchange.get_usdt_balance()
+        self.risk.start_day_if_needed(now, equity)
+        live = {p["symbol"] for p in self.exchange.get_positions()}
+        if symbol in live or symbol in self.positions:
+            self.decisions.log("drill_skipped", symbol, reason="position already open")
+            return
+
+        decision = self.risk.can_open_position(symbol, now)
+        if not decision:
+            self.decisions.log("drill_blocked", symbol, reason=decision.reason)
+            return
+
+        tf = self.settings.trading_timeframe
+        raw = self.exchange.get_closed_candles(symbol, tf, self.settings.candle_history)
+        df = pd.DataFrame(raw)
+        df["open_time"] = pd.to_datetime(df["open_time"], unit="ms", utc=True)
+        signals = generate_signals(df.set_index("open_time"), self.strategy)
+        last = signals.iloc[-1]
+        if pd.isna(last["atr"]):
+            self.decisions.log("drill_blocked", symbol, reason="not enough candle "
+                               "history to compute ATR for the stop")
+            return
+
+        # Build the forced entry: a LONG at the latest close, with the
+        # standard protective stop. This row is what a real signal would
+        # have looked like if one existed right now.
+        drill_row = last.copy()
+        drill_row["signal"] = LONG
+        drill_row["stop_price"] = float(last["close"]) - \
+            self.strategy.atr_stop_mult * float(last["atr"])
+        drill_row["target_price"] = float("nan")   # managed by trail/flip
+
+        self.decisions.log("drill", symbol,
+                           detail="FORCED demo entry — this is a fire drill, "
+                                  "not a strategy signal")
+        self._enter(symbol, drill_row, equity, now)
+        self._save_state()
+
+    # ------------------------------------------------------------------ #
     def _manage_open_position(self, symbol: str, meta: dict, last: pd.Series,
                               now: datetime) -> None:
         side = meta["side"]
