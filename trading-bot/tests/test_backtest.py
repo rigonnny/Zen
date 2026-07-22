@@ -261,3 +261,21 @@ def test_metrics_hand_computed():
     assert m["profit_factor"] == pytest.approx(100.0 / 110.0)
     assert m["total_return_pct"] == pytest.approx(8.9)
     assert m["longest_loss_streak"] == 1
+
+
+def test_unsafe_override_is_simulation_only_and_explicit():
+    """Gambler sizing requires the explicit flag; without it, refused.
+    And even with it, the LIVE risk module (bot.risk) is untouched —
+    RiskConfig still enforces the hard caps regardless."""
+    from bot.risk import RiskConfig
+
+    with pytest.raises(ValueError, match="accounts die"):
+        BacktestParams(risk_per_trade_pct=25.0)          # no flag → refused
+    p = BacktestParams(risk_per_trade_pct=25.0, max_leverage=10.0,
+                       unsafe_simulation_override=True)  # flag → simulation ok
+    assert p.risk_per_trade_pct == 25.0
+    with pytest.raises(ValueError):
+        BacktestParams(risk_per_trade_pct=200.0,
+                       unsafe_simulation_override=True)  # still bounded
+    with pytest.raises(ValueError, match="risk_per_trade_pct"):
+        RiskConfig(risk_per_trade_pct=25.0)              # live caps unmoved

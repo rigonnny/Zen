@@ -1,0 +1,62 @@
+# ============================================================================
+# THE $15-A-DAY ATTEMPT — SIMULATION.
+#
+#     python run_backtest.py --config config_yolo_sim.yaml
+#
+# This is the bot you asked for: the best strategy this project has found
+# (A+B breakout/trailing — nothing tested has beaten it), sized to actually
+# CHASE $10-15/day on a $500 account. To have any shot at that number, each
+# trade must risk ~25% of the account at up to 10x leverage. Those settings
+# are refused by the live risk module (your own day-one hard caps), so this
+# config uses the backtester's explicit unsafe_simulation_override to run
+# them against your real 4 years of downloaded market data.
+#
+# Predictions, stated before looking (same rules as always):
+#   * drawdowns beyond -80% on most markets — at 25% risk per trade, the
+#     ordinary 7-loss streaks this strategy produces multiply out to
+#     0.75^7 = 13 cents left of every dollar;
+#   * most markets end near zero;
+#   * if one market prints a huge positive number, check its max drawdown
+#     line — surviving a -90% drawdown on the way to a gain is not a
+#     result anyone experiences in real life, because real humans (and
+#     real liquidation engines) don't ride through it.
+#
+# Whatever it shows, it shows. One run, one look.
+# ============================================================================
+
+data:
+  symbols: [BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT]
+  timeframes: [4h]
+  start_date: "2022-07-01"
+  db_path: "data/market_data.db"
+  fetch_funding_rates: true
+
+strategy:
+  ema_fast: 50
+  ema_slow: 200
+  atr_period: 14
+  atr_stop_mult: 2.0
+  allow_shorts: true
+  entry_mode: breakout
+  breakout_lookback: 20
+  exit_mode: trailing
+  trail_atr_mult: 3.0
+
+risk:
+  # Untouched — the LIVE risk module keeps its hard caps no matter what
+  # this file says. Only the backtest section below goes beyond them.
+  risk_per_trade_pct: 1.0
+  max_leverage: 2.0
+  daily_loss_limit_pct: 4.0
+  max_concurrent_positions: 2
+  cooldown_hours_after_stop: 24
+  live_trading: false
+
+backtest:
+  initial_equity: 500            # your actual stake
+  fee_pct: 0.05
+  slippage_pct: 0.03
+  risk_per_trade_pct: 25.0       # gambler sizing — the only path to $15/day
+  max_leverage: 10.0
+  unsafe_simulation_override: true
+  oos_start: "2025-07-01"

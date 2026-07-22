@@ -68,21 +68,42 @@ class BacktestParams:
     risk_per_trade_pct: float = 1.0    # % of equity risked between entry and stop
     max_leverage: float = 2.0          # notional may not exceed this × equity
 
+    # SIMULATION-ONLY escape hatch. Setting this True allows risk/leverage
+    # beyond the safety walls FOR BACKTESTS, so a person can see with their
+    # own eyes, on real historical data, what gambler-sized positions do to
+    # an account — before doing it with money. It exists for informed
+    # consent, not for use. Nothing in the live engine reads this flag;
+    # the live-trading risk module keeps its hard caps regardless.
+    unsafe_simulation_override: bool = False
+
     def __post_init__(self) -> None:
         if self.initial_equity <= 0:
             raise ValueError("initial_equity must be positive.")
-        if not (0 < self.risk_per_trade_pct <= 2.0):
-            # Safety rule #3: 1–2% risk per trade, and the code means it.
-            raise ValueError(
-                f"risk_per_trade_pct is {self.risk_per_trade_pct} — must be in "
-                "(0, 2]. Risking more than 2% per trade is how accounts die; "
-                "this backtester refuses to model it as if it were sane."
+        if self.unsafe_simulation_override:
+            import logging
+            logging.getLogger(__name__).critical(
+                "UNSAFE SIMULATION: risk %.0f%%/trade at %.0fx leverage. "
+                "These settings are refused by the live risk module; this "
+                "run exists to show what they would do.",
+                self.risk_per_trade_pct, self.max_leverage,
             )
-        if not (0 < self.max_leverage <= 3.0):
-            # Safety rule #2: leverage ceiling of 3× is a hard wall here.
-            raise ValueError(
-                f"max_leverage is {self.max_leverage} — must be in (0, 3]."
-            )
+            if not (0 < self.risk_per_trade_pct <= 100):
+                raise ValueError("risk_per_trade_pct must be in (0, 100].")
+            if not (0 < self.max_leverage <= 125):
+                raise ValueError("max_leverage must be in (0, 125].")
+        else:
+            if not (0 < self.risk_per_trade_pct <= 2.0):
+                # Safety rule #3: 1–2% risk per trade, and the code means it.
+                raise ValueError(
+                    f"risk_per_trade_pct is {self.risk_per_trade_pct} — must be in "
+                    "(0, 2]. Risking more than 2% per trade is how accounts die; "
+                    "this backtester refuses to model it as if it were sane."
+                )
+            if not (0 < self.max_leverage <= 3.0):
+                # Safety rule #2: leverage ceiling of 3× is a hard wall here.
+                raise ValueError(
+                    f"max_leverage is {self.max_leverage} — must be in (0, 3]."
+                )
         if self.fee_pct < 0 or self.slippage_pct < 0:
             raise ValueError("fee_pct and slippage_pct cannot be negative.")
 
