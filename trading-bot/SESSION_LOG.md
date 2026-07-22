@@ -6,6 +6,22 @@ stands without re-reading everything.
 
 ---
 
+## 2026-07-22 — Session 8d: drill #4 SUCCESS — full lifecycle live
+
+Drill #4 on the real testnet: MARKET BUY 0.1061 BTC filled, STOP placed
+via /fapi/v1/algoOrder (algo id returned), entered @ ~65,988 with stop
+65,519 (2xATR), risk_usdt=49.81 = exactly 1% of the ~4,980 USDT demo
+balance, next tick logged `holding`. All order-path machinery now
+verified against the live (test) exchange: entry, algo-API stop,
+sizing, decision logging, position management. Total bug-hunt cost
+across 4 drills: ~2 fake dollars. Two production-grade bugs found and
+fixed by drilling (float precision -1111, algo migration -4120).
+
+Watching next: trail_ratchet / stop-out+cooldown / trend_flip_exit, and
+the kill-switch finale. Five-market backtest still queued.
+
+---
+
 ## 2026-07-22 — Session 8c: drill #3 → Binance Algo Order migration (-4120)
 
 Drill #3: entry filled cleanly (qty 0.1064 — Decimal fix works), stop
