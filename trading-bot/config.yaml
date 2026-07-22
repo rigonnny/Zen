@@ -1,0 +1,40 @@
+# ============================================================================
+# Bot configuration — Phase 1: data pipeline.
+#
+# Everything the data pipeline needs to know lives here, so you can change
+# WHAT to download without touching any Python code. Later phases will add
+# their own sections (strategy rules, risk limits, ...) to this same file.
+# ============================================================================
+
+data:
+  # Which markets to download. These are Binance USDT-M perpetual futures
+  # symbols: "BTCUSDT" means the Bitcoin/US-Dollar-Tether perpetual contract.
+  # Start with the two most liquid markets — liquid means lots of buyers and
+  # sellers, so prices are cleaner and fees/slippage are lowest.
+  symbols:
+    - BTCUSDT
+    - ETHUSDT
+
+  # Candle sizes to download. A "4h" candle summarizes 4 hours of trading
+  # into open/high/low/close prices + volume. We swing-trade on 4h and 1d,
+  # matching the strategy we'll build in Phase 2.
+  timeframes:
+    - 4h
+    - 1d
+
+  # How far back to download, as a date (UTC). ~3 years gives the backtester
+  # bull markets, bear markets and sideways chop to chew on — testing on only
+  # a rising market would flatter any strategy.
+  start_date: "2022-07-01"
+
+  # Where the local SQLite database file goes (relative to this folder).
+  # SQLite = a full database that lives in a single ordinary file. No server
+  # to install; Python supports it out of the box.
+  db_path: "data/market_data.db"
+
+  # Also download funding-rate history. Perpetual futures never expire;
+  # instead, every 8 hours longs and shorts pay each other a small "funding"
+  # fee that keeps the contract price glued to the spot price. Over a
+  # multi-day swing trade these payments add up, so an honest backtest
+  # (Phase 3) must include them.
+  fetch_funding_rates: true

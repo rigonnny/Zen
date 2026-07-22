@@ -1,0 +1,16 @@
+# --- Secrets ---
+# Your real API keys live in a file called `.env` (copied from `.env.example`).
+# This line makes sure git NEVER uploads it. Do not remove this line.
+.env
+
+# --- Local data ---
+# Downloaded market data lives here. It can be re-downloaded at any time,
+# so there is no reason to store megabytes of candles in git history.
+data/
+
+# --- Python housekeeping files ---
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/

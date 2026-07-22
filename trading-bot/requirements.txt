@@ -1,0 +1,18 @@
+# Python dependencies for the trading bot.
+# Install with:  pip install -r requirements.txt
+#
+# We add dependencies phase by phase, so this list stays small and you
+# always know why each package is here.
+
+# --- Phase 1: data pipeline ---
+requests>=2.31        # talks HTTP to Binance's public market-data API
+pandas>=2.0           # tabular data handling (our candles live in DataFrames)
+PyYAML>=6.0           # reads config.yaml so settings aren't buried in code
+
+# --- Testing (all phases) ---
+pytest>=8.0           # runs the unit tests in tests/
+
+# --- Coming in later phases (not needed yet) ---
+# pandas-ta           # Phase 2: technical indicators (EMA, RSI, ATR, ...)
+# python-dotenv       # Phase 5: loads API keys from the .env file
+# python-binance      # Phase 5: authenticated trading against the testnet
